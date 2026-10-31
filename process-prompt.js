@@ -12,7 +12,7 @@ Sorting:
 - private: personal facts (family, pets, hobbies, where they live or lived).
 - business: role, employer, projects, ideas, history, who they know, as she said it. There are no Title/Company/Location fields, job and employer go here.
 - connected_by: how she knows them, only if she said so. Link an existing contact if named in full.
-- followups: every to-do and homework. owner "me" (Mareike) or "them". due only if she gave a date. If whose to-do it is cannot be told, use questions.
+- followups: every to-do and homework. owner "me" (Mareike) or "them". Following up, catching up, reaching out or checking in with the person is ALWAYS owner "me" (standing rule from Mareike): never a question. due only if she gave a date. If whose to-do it is cannot be told, use questions.
 - interaction: one short line describing this meeting, in her words.
 - meeting_date: YYYY-MM-DD from what she said or confirmed (the form date may be empty or wrong; what she says wins). Otherwise null.
 - Relative dates ("in two weeks", "next Tuesday", "mid-November"): convert them yourself to a YYYY-MM-DD using the CALENDAR given (never do date arithmetic in your head: count rows in the calendar). Count from the meeting date unless she clearly meant today. A to-do with such a date gets it as due. Keep a vague span ("mid-November") as words in the text and set due to its middle day only if she gave no exact day.
