@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Debrief">
+<title>Voice debrief</title>
+<style>
+  :root { --bg:#fafaf7; --fg:#1d2a22; --muted:#6b7a70; --card:#fff; --line:#dfe5e0; --accent:#2f7a50; --accent-fg:#fff; --me:#e8f2ec; --warn:#a4452b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141a16; --fg:#e6ede8; --muted:#90a096; --card:#1c241f; --line:#2c3830; --accent:#58b985; --accent-fg:#0f1a13; --me:#23332a; --warn:#e58a6f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 -apple-system, system-ui, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.35rem; margin:0 0 4px; } h2 { font-size:1rem; margin:0 0 8px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  label { display:block; font-size:.85rem; color:var(--muted); margin:8px 0 4px; }
+  input, textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
+  textarea { min-height:84px; resize:vertical; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; } .row > div { flex:1 1 220px; }
+  button { padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; margin:4px 8px 4px 0; }
+  button.primary { background:var(--accent); color:var(--accent-fg); border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--muted); }
+  .dot.listening { background:var(--accent); animation:pulse 1.4s infinite; } .dot.speaking { background:#d99a2b; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  #log { max-height:46vh; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+  .t { padding:8px 12px; border-radius:10px; background:var(--bg); max-width:90%; white-space:pre-wrap; }
+  .t.user { background:var(--me); align-self:flex-end; }
+  pre#preview { white-space:pre-wrap; word-break:break-word; font:14px/1.5 ui-monospace, Menlo, monospace; margin:0; }
+  .hint, #result { color:var(--muted); font-size:.9rem; } .err { color:var(--warn); }
+  ul.memos { list-style:none; padding:0; margin:0; } ul.memos li { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Voice debrief</h1>
+  <p class="sub" id="sub">Talk it out, check the preview, say yes. It lands in your vault.</p>
+
+  <section class="card" id="s-setup" hidden>
+    <h2>One-time setup on this device</h2>
+    <p class="hint">Keys are encrypted with your passphrase and stay in this browser. They are only sent to ElevenLabs, Anthropic and GitHub.</p>
+    <label for="k-el">ElevenLabs API key</label><input id="k-el" type="password" autocomplete="off">
+    <label for="k-an">Anthropic API key</label><input id="k-an" type="password" autocomplete="off">
+    <label for="k-gh">GitHub token (vault repo only, Contents read and write)</label><input id="k-gh" type="password" autocomplete="off">
+    <div class="row"><div><label for="k-repo">Vault repo</label><input id="k-repo" autocomplete="off"></div><div><label for="k-agent">ElevenLabs agent ID</label><input id="k-agent" autocomplete="off"></div></div>
+    <label for="k-pass">Passphrase (you type it each session; not recoverable)</label><input id="k-pass" type="password" autocomplete="new-password">
+    <button class="primary" id="setup-go">Save encrypted</button>
+  </section>
+
+  <section class="card" id="s-unlock" hidden>
+    <label for="u-pass">Passphrase</label><input id="u-pass" type="password" autocomplete="current-password">
+    <button class="primary" id="unlock-go">Unlock</button>
+    <button id="forget">Forget keys on this device</button>
+  </section>
+
+  <section id="s-home" hidden>
+    <div class="card">
+      <div class="row">
+        <div><label for="person">Person (type the full name)</label><input id="person" autocomplete="off" placeholder="First Last"></div>
+        <div><label for="date">Meeting date (optional, the interviewer asks)</label><input id="date" type="date"></div>
+      </div>
+      <p class="hint" id="notice"></p>
+      <button class="primary" id="start">Start debrief</button>
+    </div>
+    <div class="card" id="pending" hidden><h2>Saved but not processed yet</h2><ul class="memos" id="memos"></ul></div>
+  </section>
+
+  <section id="s-live" hidden>
+    <div class="card bar">
+      <span class="dot" id="dot"></span><span id="state">Connecting…</span><span style="flex:1"></span>
+      <button id="mute">Mute</button><button class="primary" id="end">End &amp; save</button>
+    </div>
+    <div class="card"><div id="log" aria-live="polite"></div></div>
+    <form class="card row" id="typeform">
+      <div style="flex:3 1 260px"><label for="typed">Type a spelling or correction</label><input id="typed" autocomplete="off" placeholder="e.g. Miso, Idea Flow, Menlo Park"></div>
+      <div style="flex:0 0 auto;align-self:flex-end"><button>Send</button></div>
+    </form>
+  </section>
+
+  <section id="s-pick" class="card" hidden>
+    <h2 id="pick-title"></h2><div id="pick-buttons"></div>
+  </section>
+
+  <section id="s-review" hidden>
+    <div class="card"><pre id="preview"></pre></div>
+    <div class="card" id="qbox" hidden><h2>I need an answer</h2><ul id="questions"></ul></div>
+    <div class="card">
+      <label for="feedback">Answer a question, correct something, or add to it</label>
+      <textarea id="feedback"></textarea>
+      <button id="revise">Update preview</button>
+      <button class="primary" id="write">Yes, write it</button>
+      <button id="cancel">Cancel</button>
+    </div>
+  </section>
+
+  <p id="result" aria-live="polite"></p>
+</main>
+<script src="sdk.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
