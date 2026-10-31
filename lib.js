@@ -28,6 +28,22 @@ export function writeBlocker(plan) {
   return null;
 }
 
+/**
+ * A pasted LinkedIn link -> the clean profile URL the skill writes, or null if it is not a profile link.
+ * The app's "Copy link" adds tracking (?utm_source=share&...); a profile is linkedin.com/in/<public-id>.
+ */
+export function cleanLinkedIn(raw) {
+  try {
+    const u = new URL(String(raw).trim().replace(/^(?!https?:\/\/)/, 'https://'));
+    if (!/(^|\.)linkedin\.com$/i.test(u.hostname)) return null;
+    const m = /^\/in\/([^/?#]+)/i.exec(u.pathname);
+    return m ? `https://www.linkedin.com/in/${decodeURIComponent(m[1])}` : null;
+  } catch { return null; }
+}
+export const linkedInSearchUrl = (person) => `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(person)}`;
+/** The URL already in a contact's LinkedIn:: field, or '' if the field is empty or missing. */
+export const existingLinkedIn = (text) => (/^\s*-?\s*LinkedIn::[ \t]*(\S*)/m.exec(text || '')?.[1] || '');
+
 const oneLine = (s) => String(s ?? '').replace(/\s+/g, ' ').replace(/^[-*•]\s*/, '').trim();
 const BAD_TAG = /[|/\\:*?"<>#^[\]]/g;
 const GENERIC = /^(untitled|untitled \d+|new note)$/i;
@@ -139,6 +155,13 @@ export function patchContact(text, plan, { memoBase, today }) {
     } else lines.push('', '**Follow-up:**', ...tasks);
   }
 
+  if (plan.linkedin) {
+    const li = lines.findIndex((l) => /^\s*-?\s*LinkedIn::/.test(l));
+    if (li < 0) warnings.push('The contact has no LinkedIn:: line; link not added.');
+    else if (/LinkedIn::\s*$/.test(lines[li])) lines[li] = lines[li].replace(/\s*$/, ' ') + plan.linkedin;
+    else if (!lines[li].includes(plan.linkedin)) warnings.push('The contact already has a different LinkedIn link; left it as it was.');
+  }
+
   const ti = lines.findIndex((l) => /^Tags::/.test(l));
   if (plan.tags.length) {
     if (ti >= 0) {
@@ -177,7 +200,7 @@ export function renderNewContact(person, plan, { memoBase, today }) {
     '- ',
     '-----',
     '**Basic Information:**',
-    '- LinkedIn:: ',
+    `- LinkedIn:: ${plan.linkedin || ''}`,
     '- Email:: ',
     '',
     '**Background:**',
@@ -203,6 +226,9 @@ export function appendLog(text, { today, memoBase, person, isNew }) {
 }
 
 // ---------- preview ----------
+const linkedInLine = (plan, isNew) =>
+  plan.linkedin ? `LinkedIn: ${plan.linkedin}` : plan.linkedinKept ? `LinkedIn: already in the note (${plan.linkedinKept})` : 'LinkedIn: none yet. Use "Find on LinkedIn" below, or leave it empty.';
+
 export function renderPreview(plan, { person, file, isNew, memoBase, today }) {
   const out = [];
   out.push(`Target: ${isNew ? 'new contact' : 'append to'} ${file}`, `Raw memo (already saved): ${memoBase}.md`, '');
@@ -213,7 +239,7 @@ export function renderPreview(plan, { person, file, isNew, memoBase, today }) {
     if (tagsWhy.length) out.push('Why these tags:', ...tagsWhy.map((t) => `  ${t}`), '');
     if (plan.open_questions.length) out.push('Open questions:', ...plan.open_questions.map((q) => `  ⚠️ ${q}`), '');
     if (plan.left_out.length) out.push('Left out:', ...plan.left_out.map((q) => `  ${q}`), '');
-    out.push('LinkedIn: not looked up here. Say "linkedin <Name>" in Claude Code if you want it.');
+    out.push(linkedInLine(plan, isNew));
     return out.join('\n').trim();
   }
   if (!plan.meeting_date) out.push('⚠️ Meeting date missing: tell me when you met, then I can build the lines.', '');
@@ -232,7 +258,7 @@ export function renderPreview(plan, { person, file, isNew, memoBase, today }) {
   section('Tags:', plan.tags.map((t) => `${t.name} (${t.existing ? 'existing' : 'new'}${t.why ? `: ${t.why}` : ''})`));
   section('Open questions:', plan.open_questions.map((q) => `⚠️ ${q}`));
   section('Left out:', plan.left_out);
-  out.push('LinkedIn: not looked up here. Say "linkedin <Name>" in Claude Code if you want it.');
+  out.push(linkedInLine(plan, isNew));
   return out.join('\n').trim();
 }
 

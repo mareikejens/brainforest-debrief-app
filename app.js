@@ -2,7 +2,7 @@ import { open, seal } from './secrets.js';
 import { Vault } from './vault.js';
 import * as eleven from './eleven.js';
 import { applyPlan, loadIndex, makePlan, saveMemo, unprocessed } from './flow.js';
-import { findCandidates, contactFile, parseMemo, renderPreview, todayZurich, writeBlocker } from './lib.js';
+import { cleanLinkedIn, contactFile, existingLinkedIn, findCandidates, linkedInSearchUrl, parseMemo, renderPreview, todayZurich, writeBlocker } from './lib.js';
 
 const $ = (id) => document.getElementById(id);
 const SECTIONS = ['setup', 'unlock', 'home', 'live', 'pick', 'review', 'done'];
@@ -146,6 +146,9 @@ function begin(j) {
 function btn(label, fn, primary) { const b = document.createElement('button'); b.textContent = label; if (primary) b.className = 'primary'; b.onclick = fn; return b; }
 
 async function plan(feedback) {
+  if (!job.target.isNew && job.linkedinKept === undefined) {
+    job.linkedinKept = existingLinkedIn((await vault.read(`${index.contactsDir}/${job.target.file}`).catch(() => null))?.text);
+  }
   say('Sorting it into the contact note…'); $('revise').disabled = $('write').disabled = true;
   try {
     job.plan = await makePlan({ anthropicKey: K.anthropicKey, vault, index, person: job.person, formDate: job.formDate, transcript: job.transcript,
@@ -156,6 +159,11 @@ async function plan(feedback) {
 }
 function render() {
   const p = job.plan;
+  p.linkedin = job.linkedin || null;        // set by you in the app, never by the model
+  p.linkedinKept = job.linkedinKept || '';
+  $('libox').hidden = Boolean(job.linkedinKept);
+  $('li-find').href = linkedInSearchUrl(job.person);
+  $('li-url').value = job.linkedin || '';
   $('preview').textContent = renderPreview(p, { person: job.person, file: job.target.file, isNew: job.target.isNew, memoBase: job.memoBase, today: todayZurich() });
   $('qbox').hidden = !p.questions.length;
   $('questions').replaceChildren(...p.questions.map((q) => Object.assign(document.createElement('li'), { textContent: q })));
@@ -164,6 +172,13 @@ function render() {
   $('why').textContent = why || '';
   $('feedback').value = ''; say(''); show('review');
 }
+$('li-url').oninput = () => {
+  const raw = $('li-url').value.trim();
+  const url = raw ? cleanLinkedIn(raw) : null;
+  if (raw && !url) { $('li-msg').textContent = 'That is not a profile link (it should contain linkedin.com/in/…).'; $('li-msg').className = 'err'; return; }
+  job.linkedin = url; $('li-msg').textContent = url ? `Will write: ${url}` : ''; $('li-msg').className = 'hint';
+  const keep = $('feedback').value; render(); $('feedback').value = keep;   // no new Claude call needed
+};
 $('revise').onclick = () => { const f = $('feedback').value.trim(); if (f) plan(f); };
 $('done-next').onclick = () => { $('person').value = ''; $('date').value = ''; enter(); };
 $('cancel').onclick = () => { job = null; say('Cancelled. The transcript stays saved in your vault; it will show up under "Saved but not processed".'); enter(); };
