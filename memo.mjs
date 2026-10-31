@@ -1,4 +1,4 @@
-// Memo helpers shared by the local server (server.mjs) and the debrief app (app/),
+// Memo helpers for the debrief app (app/), kept here so Node tests and the browser share them,
 // so both produce byte-identical memos. No Node-only imports: this file also runs in the browser.
 
 export const httpError = (status, message) => Object.assign(new Error(message), { status });

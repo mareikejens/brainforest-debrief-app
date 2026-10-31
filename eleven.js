@@ -4,6 +4,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function el(apiKey, path, init = {}, fetchFn = (...a) => fetch(...a)) {
   const res = await fetchFn(BASE + path, { ...init, headers: { 'xi-api-key': apiKey } });
+  if (res.status === 401) throw new Error('ElevenLabs key invalid or revoked. Open Settings and paste a new one.');
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}`); // never echo the body
   return res.status === 204 ? null : res.json().catch(() => null);
 }

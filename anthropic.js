@@ -5,6 +5,7 @@ export async function callClaude({ apiKey, system, user, model = 'claude-sonnet-
     body: JSON.stringify({ model, max_tokens: 6000, system, messages: [{ role: 'user', content: user }] }),
   });
   const body = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('Anthropic key invalid or revoked. Open Settings and paste a new one.');
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${body.error?.message || 'error'}`);
   return (body.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
 }

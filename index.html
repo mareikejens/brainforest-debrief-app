@@ -2,114 +2,230 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Debrief">
-<title>Voice debrief</title>
+<meta name="theme-color" content="#131316">
+<title>Debrief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#fafaf7; --fg:#1d2a22; --muted:#6b7a70; --card:#fff; --line:#dfe5e0; --accent:#2f7a50; --accent-fg:#fff; --me:#e8f2ec; --warn:#a4452b; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#141a16; --fg:#e6ede8; --muted:#90a096; --card:#1c241f; --line:#2c3830; --accent:#58b985; --accent-fg:#0f1a13; --me:#23332a; --warn:#e58a6f; }
+  /* Brainforest glass: graphite and soft lavender. The only pink is the new person's node. */
+  :root {
+    --bg:#131316; --text:#ecebf0; --muted:#9a96a6; --faint:#5f5b6b;
+    --pink:#f570ff; --soft:#c7b8f0; --soft-line:rgba(199,184,240,.35);
+    --glass:rgba(255,255,255,.045); --glass-hi:rgba(255,255,255,.08); --edge:rgba(255,255,255,.09);
+    --warn:#d9c487; --err:#e9a0a0;
   }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 -apple-system, system-ui, sans-serif; }
-  main { max-width:720px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { font-size:1.35rem; margin:0 0 4px; } h2 { font-size:1rem; margin:0 0 8px; }
-  p.sub { color:var(--muted); margin:0 0 20px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
-  label { display:block; font-size:.85rem; color:var(--muted); margin:8px 0 4px; }
-  input, textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font:inherit; }
-  textarea { min-height:84px; resize:vertical; }
-  .row { display:flex; gap:12px; flex-wrap:wrap; } .row > div { flex:1 1 220px; }
-  button { padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; margin:4px 8px 4px 0; }
-  button.primary { background:var(--accent); color:var(--accent-fg); border-color:var(--accent); font-weight:600; }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  .bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .dot { width:10px; height:10px; border-radius:50%; background:var(--muted); }
-  .dot.listening { background:var(--accent); animation:pulse 1.4s infinite; } .dot.speaking { background:#d99a2b; }
-  @keyframes pulse { 50% { opacity:.35; } }
-  #log { max-height:46vh; overflow:auto; display:flex; flex-direction:column; gap:10px; }
-  .t { padding:8px 12px; border-radius:10px; background:var(--bg); max-width:90%; white-space:pre-wrap; }
-  .t.user { background:var(--me); align-self:flex-end; }
-  pre#preview { white-space:pre-wrap; word-break:break-word; font:14px/1.5 ui-monospace, Menlo, monospace; margin:0; }
-  .hint, #result { color:var(--muted); font-size:.9rem; } .err { color:var(--warn); }
-  ul.memos { list-style:none; padding:0; margin:0; } ul.memos li { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { background:var(--bg); }
+  body { margin:0; min-height:100vh; color:var(--text); font:16px/1.5 Inter, -apple-system, system-ui, sans-serif; -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(420px 320px at 90% -5%, rgba(150,130,210,.07), transparent 65%),
+      radial-gradient(380px 340px at -10% 105%, rgba(150,130,210,.05), transparent 65%), var(--bg); background-attachment:fixed; }
+  main { max-width:560px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 32px); display:flex; flex-direction:column; gap:16px; }
+  .top { display:flex; justify-content:space-between; align-items:center; min-height:32px; }
+  .eyebrow { font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0; }
+  h1 { margin:0; font-size:1.75rem; font-weight:500; letter-spacing:-.025em; line-height:1.2; }
+  h1 .soft { color:var(--muted); font-weight:300; }
+  h2 { margin:0 0 8px; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:500; }
+  section { display:flex; flex-direction:column; gap:16px; }
+  .glass { background:linear-gradient(180deg, var(--glass-hi), var(--glass)); border:1px solid var(--edge); border-radius:22px; padding:16px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 20px 40px -24px rgba(0,0,0,.8); backdrop-filter:blur(20px) saturate(1.3); -webkit-backdrop-filter:blur(20px) saturate(1.3); }
+  label { display:block; font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:10px 0 6px; }
+  label:first-child { margin-top:0; }
+  input, textarea { width:100%; background:rgba(0,0,0,.25); border:1px solid var(--edge); border-radius:14px; padding:12px 14px; color:var(--text); font:inherit; font-size:16px; outline:none; }
+  input:focus, textarea:focus { border-color:var(--soft-line); }
+  input::placeholder, textarea::placeholder { color:var(--faint); }
+  textarea { min-height:80px; resize:vertical; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; border-radius:999px; padding:13px 20px; font:inherit; font-weight:500; font-size:.94rem;
+    background:rgba(255,255,255,.06); border:1px solid var(--edge); color:var(--text); box-shadow:inset 0 1px 0 rgba(255,255,255,.08); cursor:pointer; text-decoration:none; }
+  .btn.go { color:#fff; border-color:rgba(255,255,255,.2); background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.07)); box-shadow:0 10px 26px -14px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.22); }
+  .btn.go:not(.icon)::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--soft); box-shadow:0 0 6px rgba(199,184,240,.45); }
+  .btn.small { padding:7px 13px; font-size:.8rem; }
+  .btn.ghost { background:transparent; border-color:transparent; box-shadow:none; color:var(--muted); padding:6px 8px; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  .btn svg { width:16px; height:16px; }
+  .wide { width:100%; margin-top:14px; }
+  .row { display:flex; gap:10px; } .row .btn { flex:1; } .row .btn.go { flex:1.6; }
+  .hint { color:var(--muted); font-size:.86rem; margin:6px 0 0; }
+  .err { color:var(--err) !important; }
+  .memo { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 0; border-top:1px solid var(--edge); font-size:.92rem; }
+  .memo:first-of-type { border-top:0; padding-top:2px; }
+  .memo small { color:var(--muted); display:block; font-size:.78rem; }
+
+  /* graph */
+  svg.graph { display:block; width:100%; height:auto; overflow:visible; }
+  .edge { stroke:rgba(255,255,255,.12); stroke-width:1; }
+  .edge.new { stroke:var(--soft-line); stroke-width:1.2; stroke-dasharray:3 4; animation:flow 1.6s linear infinite; }
+  svg[data-mode="working"] .edge.new { animation-duration:.6s; stroke-width:1.5; }
+  @keyframes flow { to { stroke-dashoffset:-14; } }
+  .node { fill:#4a4654; } .node.fresh { fill:#8c84a3; }
+  .lbl { fill:var(--muted); font-size:9.5px; font-family:Inter, sans-serif; }
+  .lbl.hi { fill:var(--text); font-size:11px; font-weight:500; }
+  .halo { fill:rgba(245,112,255,.14); animation:breathe 2.4s ease-in-out infinite; transform-origin:center; transform-box:fill-box; }
+  .halo.b { fill:rgba(245,112,255,.06); animation-delay:.6s; }
+  svg[data-mode="working"] .halo { animation-duration:1.1s; }
+  svg.speaking .halo { animation-duration:.9s; }
+  @keyframes breathe { 50% { transform:scale(1.35); opacity:.4; } }
+  @media (prefers-reduced-motion: reduce) { .edge.new, .halo { animation:none; } }
+
+  .state { text-align:center; margin:-6px 0 0; font-size:.72rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+  #log { display:flex; flex-direction:column; gap:10px; max-height:38vh; overflow:auto; }
+  .say { font-size:.94rem; line-height:1.45; padding-top:10px; border-top:1px solid var(--edge); }
+  .say:first-child { border-top:0; padding-top:0; }
+  .say .who { font-size:.64rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:2px; }
+  .say.me .who { color:var(--soft); } .say.ai { color:#cfccd8; }
+  .typebar { display:flex; gap:8px; } .typebar input { border-radius:999px; }
+
+  #rich h2 { margin:14px 0 6px; } #rich h2:first-child { margin-top:0; }
+  .add { font-size:.94rem; padding:2px 0 2px 12px; border-left:1.5px solid var(--soft-line); margin:5px 0; }
+  .add.muted { color:var(--muted); border-left-color:var(--edge); }
+  .task { display:flex; gap:10px; align-items:flex-start; font-size:.94rem; margin:6px 0; padding-left:12px; border-left:1.5px solid var(--soft-line); }
+  .task.muted { color:var(--muted); border-left-color:var(--edge); }
+  .box { width:15px; height:15px; border-radius:5px; border:1.5px solid var(--soft); flex:0 0 15px; margin-top:4px; }
+  .due { color:var(--muted); font-size:.82rem; }
+  .tag { display:inline-block; font-size:.78rem; padding:4px 10px; border-radius:999px; border:1px solid var(--edge); color:#d9d3e8; background:rgba(255,255,255,.04); margin:2px 5px 2px 0; }
+  .tag.new { border-style:dashed; }
+  .wl { color:var(--soft); }
+  details.raw summary { cursor:pointer; color:var(--muted); font-size:.82rem; list-style:none; }
+  details.raw summary::-webkit-details-marker { display:none; }
+  details.raw[open] summary { margin-bottom:10px; }
+  pre#preview { white-space:pre-wrap; word-break:break-word; font:14px/1.55 Inter, -apple-system, sans-serif; margin:0; color:#dedbe6; }
+  .check { display:flex; gap:10px; align-items:flex-start; font-size:.92rem; margin:8px 0; }
+  .check input { width:18px; height:18px; flex:0 0 18px; margin:2px 0 0; accent-color:#c7b8f0; }
+  .note { font-size:.88rem; border:1px solid rgba(224,172,0,.2); background:rgba(224,172,0,.05); color:var(--warn); border-radius:14px; padding:10px 12px; }
+  .note ul { margin:4px 0 0; padding-left:18px; }
+  .working-lines { text-align:center; color:var(--muted); font-size:.9rem; min-height:1.4em; }
+  #result { font-size:.9rem; color:var(--muted); text-align:center; min-height:1em; margin:0; }
   [hidden] { display:none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Voice debrief</h1>
-  <p class="sub" id="sub">Talk it out, check the preview, say yes. It lands in your vault.</p>
+  <div class="top">
+    <p class="eyebrow">Brainforest</p>
+    <button class="btn ghost" id="gear" hidden aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
 
-  <section class="card" id="s-setup" hidden>
-    <h2>One-time setup on this device</h2>
-    <p class="hint">Keys are encrypted with your passphrase and stay in this browser. They are only sent to ElevenLabs, Anthropic and GitHub.</p>
-    <label for="k-el">ElevenLabs API key</label><input id="k-el" type="password" autocomplete="off">
-    <label for="k-an">Anthropic API key</label><input id="k-an" type="password" autocomplete="off">
-    <label for="k-gh">GitHub token (vault repo only, Contents read and write)</label><input id="k-gh" type="password" autocomplete="off">
-    <div class="row"><div><label for="k-repo">Vault repo</label><input id="k-repo" autocomplete="off"></div><div><label for="k-agent">ElevenLabs agent ID</label><input id="k-agent" autocomplete="off"></div></div>
-    <label for="k-pass">Passphrase (you type it each session; not recoverable)</label><input id="k-pass" type="password" autocomplete="new-password">
-    <button class="primary" id="setup-go">Save encrypted</button>
+  <!-- one-time setup -->
+  <section id="s-setup" hidden>
+    <h1>Set up <span class="soft">this device</span></h1>
+    <div class="glass">
+      <p class="hint" style="margin:0 0 10px">Keys are encrypted and stay in this browser. They only go to ElevenLabs, Anthropic and GitHub.</p>
+      <label for="k-el">ElevenLabs API key</label><input id="k-el" type="password" autocomplete="off">
+      <label for="k-an">Anthropic API key</label><input id="k-an" type="password" autocomplete="off">
+      <label for="k-gh">GitHub token (vault repo, Contents read and write)</label><input id="k-gh" type="password" autocomplete="off">
+      <label for="k-repo">Vault repo</label><input id="k-repo" autocomplete="off">
+      <label for="k-agent">ElevenLabs agent ID</label><input id="k-agent" autocomplete="off">
+      <label for="k-pass">Passphrase (fallback if Face ID is unavailable)</label><input id="k-pass" type="password" autocomplete="new-password">
+      <button class="btn go wide" id="setup-go">Save and turn on Face ID</button>
+    </div>
   </section>
 
-  <section class="card" id="s-unlock" hidden>
-    <label for="u-pass">Passphrase</label><input id="u-pass" type="password" autocomplete="current-password">
-    <button class="primary" id="unlock-go">Unlock</button>
-    <button id="forget">Forget keys on this device</button>
+  <!-- unlock -->
+  <section id="s-unlock" hidden>
+    <h1>Welcome <span class="soft">back</span></h1>
+    <div class="glass">
+      <button class="btn go wide icon" id="face-go" style="margin-top:0" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg>Unlock with Face ID</button>
+      <label for="u-pass" id="u-pass-label">Passphrase</label><input id="u-pass" type="password" autocomplete="current-password">
+      <button class="btn wide" id="unlock-go">Unlock with passphrase</button>
+    </div>
   </section>
 
+  <!-- start -->
   <section id="s-home" hidden>
-    <div class="card">
-      <div class="row">
-        <div><label for="person">Person (type the full name)</label><input id="person" autocomplete="off" placeholder="First Last"></div>
-        <div><label for="date">Meeting date (optional, the interviewer asks)</label><input id="date" type="date"></div>
-      </div>
-      <p class="hint" id="notice"></p>
-      <button class="primary" id="start">Start debrief</button>
+    <h1>Who did you <span class="soft">just meet?</span></h1>
+    <svg class="graph" id="g-home"></svg>
+    <div class="glass">
+      <label for="person">Person</label><input id="person" autocomplete="off" placeholder="First Last">
+      <label for="date">Meeting date</label><input id="date" type="date">
+      <p class="hint">Leave the date empty and the interviewer asks.</p>
+      <button class="btn go wide icon" id="start">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Start debrief</button>
     </div>
-    <div class="card" id="pending" hidden><h2>Saved but not processed yet</h2><ul class="memos" id="memos"></ul></div>
+    <div class="glass" id="pending" hidden><h2>Waiting for your yes</h2><div id="memos"></div></div>
   </section>
 
+  <!-- live -->
   <section id="s-live" hidden>
-    <div class="card bar">
-      <span class="dot" id="dot"></span><span id="state">Connecting…</span><span style="flex:1"></span>
-      <button id="mute">Mute</button><button class="primary" id="end">End &amp; save</button>
+    <p class="eyebrow" id="live-title"></p>
+    <svg class="graph" id="g-live"></svg>
+    <p class="state" id="state">Connecting</p>
+    <div class="glass" id="interrupted" hidden>
+      <h2>The call dropped</h2>
+      <p class="hint" style="margin:0 0 12px">Everything so far is kept. Continue where you stopped, or save it as it is.</p>
+      <div class="row"><button class="btn" id="save-now">Save as is</button><button class="btn go" id="resume">Continue</button></div>
     </div>
-    <div class="card"><div id="log" aria-live="polite"></div></div>
-    <form class="card row" id="typeform">
-      <div style="flex:3 1 260px"><label for="typed">Type a spelling or correction</label><input id="typed" autocomplete="off" placeholder="e.g. Miso, Idea Flow, Menlo Park"></div>
-      <div style="flex:0 0 auto;align-self:flex-end"><button>Send</button></div>
-    </form>
+    <div class="glass"><div id="log" aria-live="polite"></div></div>
+    <form class="typebar" id="typeform"><input id="typed" autocomplete="off" placeholder="Type a spelling…"><button class="btn small">Send</button></form>
+    <div class="row"><button class="btn" id="mute">Mute</button><button class="btn go" id="end">End &amp; save</button></div>
   </section>
 
-  <section id="s-pick" class="card" hidden>
-    <h2 id="pick-title"></h2><div id="pick-buttons"></div>
+  <!-- which contact -->
+  <section id="s-pick" hidden>
+    <h1 id="pick-title"></h1>
+    <div class="glass" id="pick-buttons" style="display:flex;flex-direction:column;gap:10px"></div>
   </section>
 
+  <!-- sorting -->
+  <section id="s-working" hidden>
+    <p class="eyebrow" id="work-title"></p>
+    <svg class="graph" id="g-work"></svg>
+    <p class="working-lines" id="work-line">Sorting it into your vault…</p>
+  </section>
+
+  <!-- preview -->
   <section id="s-review" hidden>
-    <div class="card"><pre id="preview"></pre></div>
-    <div class="card" id="libox" hidden>
+    <p class="eyebrow" id="rev-eyebrow"></p>
+    <h1 id="rev-title"></h1>
+    <svg class="graph" id="g-rev"></svg>
+    <div class="glass" id="rich"></div>
+    <details class="glass raw"><summary>Exact text that will be written</summary><pre id="preview"></pre></details>
+    <div class="note" id="qbox" hidden><b>I need an answer</b><ul id="questions"></ul></div>
+    <div class="glass" id="extras" hidden><h2>Also add</h2><div id="extra-list"></div></div>
+    <div class="glass" id="libox" hidden>
       <h2>LinkedIn</h2>
-      <p class="hint">Opens the LinkedIn app with the name searched; your connections come first. Tap the right person, then Share › Copy link, and paste it here.</p>
-      <a id="li-find" target="_blank" rel="noopener"><button type="button">Find on LinkedIn</button></a>
-      <label for="li-url">Profile link</label><input id="li-url" type="url" inputmode="url" autocomplete="off" placeholder="https://www.linkedin.com/in/…">
+      <a class="btn small" id="li-find" target="_blank" rel="noopener">Find on LinkedIn →</a>
+      <p class="hint">Your connections come first. Tap the person, Share › Copy link, paste it here.</p>
+      <input id="li-url" type="url" inputmode="url" autocomplete="off" placeholder="https://www.linkedin.com/in/…" style="margin-top:10px">
       <p class="hint" id="li-msg"></p>
     </div>
-    <div class="card" id="qbox" hidden><h2>I need an answer</h2><ul id="questions"></ul></div>
-    <div class="card">
-      <label for="feedback">Answer a question, correct something, or add to it</label>
-      <textarea id="feedback"></textarea>
-      <button id="revise">Update preview</button>
-      <button class="primary" id="write">Yes, write it</button>
-      <button id="cancel">Cancel</button>
-      <p class="hint" id="why"></p>
+    <div class="glass">
+      <label for="feedback">Answer, correct or add</label>
+      <textarea id="feedback" placeholder="e.g. the follow-up is on the 16th"></textarea>
+      <button class="btn wide" id="revise">Update preview</button>
     </div>
+    <p class="hint" id="why" style="text-align:center"></p>
+    <div class="row"><button class="btn" id="cancel">Cancel</button><button class="btn go" id="write">Yes, write it</button></div>
   </section>
 
-  <section class="card" id="s-done" hidden>
-    <h2 id="done-title"></h2><p id="done-body"></p>
-    <button class="primary" id="done-next">Next debrief</button>
+  <!-- done -->
+  <section id="s-done" hidden>
+    <svg class="graph" id="g-done"></svg>
+    <h1 id="done-title"></h1>
+    <div class="glass"><p id="done-body" style="margin:0"></p></div>
+    <button class="btn go" id="done-next">Next debrief</button>
+  </section>
+
+  <!-- settings -->
+  <section id="s-settings" hidden>
+    <h1>Settings</h1>
+    <div class="glass">
+      <p class="hint" style="margin:0 0 10px">Paste only what you want to replace. Empty fields keep the current value.</p>
+      <label for="x-el">ElevenLabs API key</label><input id="x-el" type="password" autocomplete="off" placeholder="keep current">
+      <label for="x-an">Anthropic API key</label><input id="x-an" type="password" autocomplete="off" placeholder="keep current">
+      <label for="x-gh">GitHub token</label><input id="x-gh" type="password" autocomplete="off" placeholder="keep current">
+      <label for="x-repo">Vault repo</label><input id="x-repo" autocomplete="off">
+      <label for="x-agent">ElevenLabs agent ID</label><input id="x-agent" autocomplete="off">
+      <label for="x-pass">Passphrase (required to save)</label><input id="x-pass" type="password" autocomplete="current-password">
+      <button class="btn go wide" id="x-save">Save</button>
+    </div>
+    <div class="row"><button class="btn" id="x-back">Back</button><button class="btn" id="forget">Forget keys on this device</button></div>
   </section>
 
   <p id="result" aria-live="polite"></p>

@@ -14,6 +14,8 @@ Sorting:
 - connected_by: how she knows them, only if she said so. Link an existing contact if named in full.
 - followups: every to-do and homework. owner "me" (Mareike) or "them". Following up, catching up, reaching out or checking in with the person is ALWAYS owner "me" (standing rule from Mareike): never a question. due only if she gave a date. If whose to-do it is cannot be told, use questions.
 - interaction: one short line describing this meeting, in her words.
+- talking_point: her answer to the interviewer's last question ("anything from your side worth mentioning in a follow-up"), as a short phrase about what SHE is working on, reading or seeing (e.g. "Warmup AIS, my networking app"). null if she named nothing. Also weave it into the follow-up to-do with the person: "Follow up with Ada, mention Warmup AIS". It is never a tag and never an open question.
+- dictionary: for every "(typed)" spelling and every name she confirmed as correctly spelled that is NOT already in the dictionary: {"term": exact spelling, "meaning": what it is, from the transcript only, a few words, "heard_as": how speech-to-text wrote it in the transcript, or null}.
 - meeting_date: YYYY-MM-DD from what she said or confirmed (the form date may be empty or wrong; what she says wins). Otherwise null.
 - Relative dates ("in two weeks", "next Tuesday", "mid-November"): convert them yourself to a YYYY-MM-DD using the CALENDAR given (never do date arithmetic in your head: count rows in the calendar). Count from the meeting date unless she clearly meant today. A to-do with such a date gets it as due. Keep a vague span ("mid-November") as words in the text and set due to its middle day only if she gave no exact day.
 - tags: 3 to 6, topics, fields, communities, themes, places that came up. Not people, not private life facts. Prefer a name from the vault note list (same form, case-insensitively), set existing true; otherwise a new name, existing false. why: a few words.
@@ -26,7 +28,7 @@ Sorting:
 If a feedback message and a previous plan are given, apply the feedback to the previous plan and return the full updated plan.
 
 Return exactly this JSON shape:
-{"meeting_date":null,"connected_by":null,"private":[],"business":[],"followups":[{"owner":"me","text":"","due":null}],"interaction":"","tags":[{"name":"","existing":false,"why":""}],"open_questions":[],"left_out":[],"questions":[]}`;
+{"meeting_date":null,"connected_by":null,"talking_point":null,"dictionary":[{"term":"","meaning":"","heard_as":null}],"private":[],"business":[],"followups":[{"owner":"me","text":"","due":null}],"interaction":"","tags":[{"name":"","existing":false,"why":""}],"open_questions":[],"left_out":[],"questions":[]}`;
 
 export function buildUser({ calendar, person, today, formDate, transcript, existing, dictionary, notes, previous, feedback }) {
   return [

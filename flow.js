@@ -2,7 +2,7 @@
 import { memoBaseName, renderMemo } from './memo.mjs';
 import { callClaude } from './anthropic.js';
 import { SYSTEM, buildUser } from './process-prompt.js';
-import { addDays, appendLog, calendar, extractJson, normalizePlan, patchContact, renderNewContact, todayZurich, unprocessedMemos } from './lib.js';
+import { addDays, addDictionaryRows, addTalkingPoint, appendLog, dictionaryTerms, calendar, extractJson, normalizePlan, patchContact, renderNewContact, todayZurich, unprocessedMemos } from './lib.js';
 
 const DICT = '.claude/skills/voice-contact-debrief/dictionary.md';
 const base = (p) => p.split('/').pop().replace(/\.md$/, '');
@@ -21,6 +21,12 @@ export async function loadIndex(vault) {
     memos: under(memoDir).map(base),
     notes: paths.filter((p) => /^0[13]_/.test(p) && p.endsWith('.md')).map(base).filter((n) => !n.startsWith('@ ')).slice(0, 2500),
   };
+}
+
+/** Spelling suggestions minus what the dictionary already has. */
+export async function newDictionaryEntries(vault, plan) {
+  const have = dictionaryTerms((await vault.read(DICT))?.text ?? '');
+  return plan.dictionary.filter((d) => !have.has(d.term.toLowerCase()));
 }
 
 export const unprocessed = (index) => unprocessedMemos(index.memos, index.log).slice(0, 10);
@@ -52,7 +58,7 @@ export async function makePlan({ anthropicKey, vault, index, person, formDate, t
   throw lastErr;
 }
 
-export async function applyPlan({ vault, index, person, plan, memoBase, target }) {
+export async function applyPlan({ vault, index, person, plan, memoBase, target, extras = {} }) {
   if (!plan.meeting_date || !plan.interaction) throw new Error('Meeting date or interaction line missing');
   const today = todayZurich();
   const path = `${index.contactsDir}/${target.file}`;
@@ -71,6 +77,13 @@ export async function applyPlan({ vault, index, person, plan, memoBase, target }
     target.warnings = warnings;
     target.changed = changed;
   }
+  // Optional extras she ticked in the preview.
+  if (extras.talkingPoint && plan.talking_point) {
+    await vault.modify('_system/talking-points.md', (t) => (t === null ? null : addTalkingPoint(t, { today, point: plan.talking_point })), message);
+  }
+  const dict = (extras.dictionary || []).filter(Boolean);
+  if (dict.length) await vault.modify(DICT, (t) => (t === null ? null : addDictionaryRows(t, dict)), message);
+
   // log.md last: it is what marks the memo as processed, so a half-finished run can be retried.
   await vault.modify('log.md', (t) => (t === null || t.includes(`Voice Memos/${memoBase}`) ? null : appendLog(t, { today, memoBase, person, isNew: target.isNew })), message);
 }

@@ -25,6 +25,8 @@ export class Vault {
     });
     if (res.status === 404) return null;
     const body = await res.json().catch(() => ({}));
+    if (res.status === 401) throw Object.assign(new Error('GitHub token expired or invalid. Open Settings and paste a new one.'), { status: 401 });
+    if (res.status === 403 && /not accessible|permission/i.test(body.message || '')) throw Object.assign(new Error('The GitHub token cannot write to the vault repo. Give it Contents: read and write, then paste it in Settings.'), { status: 403 });
     if (!res.ok) throw Object.assign(new Error(`GitHub ${res.status}: ${body.message || 'error'}`), { status: res.status });
     return body;
   }

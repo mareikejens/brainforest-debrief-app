@@ -71,6 +71,10 @@ export function normalizePlan(raw) {
       .map((t) => ({ name: oneLine(t?.name).replace(BAD_TAG, '').trim(), existing: Boolean(t?.existing), why: oneLine(t?.why) }))
       .filter((t) => t.name && !GENERIC.test(t.name))
       .slice(0, 6),
+    talking_point: oneLine(raw.talking_point) || null,
+    dictionary: (Array.isArray(raw.dictionary) ? raw.dictionary : [])
+      .map((d) => ({ term: oneLine(d?.term).replace(/\|/g, ''), meaning: oneLine(d?.meaning).replace(/\|/g, '-'), heard_as: oneLine(d?.heard_as).replace(/\|/g, '') || null }))
+      .filter((d) => d.term && d.term.length <= 60),
     open_questions: strs(raw.open_questions),
     left_out: strs(raw.left_out),
     questions: strs(raw.questions).slice(0, 5),
@@ -217,6 +221,35 @@ export function renderNewContact(person, plan, { memoBase, today }) {
     ...cadence,
     '',
   ].join('\n');
+}
+
+// ---------- talking points and dictionary ----------
+/** Newest first, right under "## Items", in the format _system/talking-points.md defines. */
+export function addTalkingPoint(text, { today, point }) {
+  const line = `- [${today}] ${point} | topics: (none yet) | share: yes | link: `;
+  if (text.includes(`] ${point} |`)) return text;
+  const lines = text.split('\n');
+  const i = lines.findIndex((l) => /^##\s+Items/.test(l));
+  if (i < 0) return text.replace(/\s*$/, '\n') + line + '\n';
+  lines.splice(i + 1, 0, line);
+  return lines.join('\n');
+}
+
+export const dictionaryTerms = (text) =>
+  new Set(text.split('\n').filter((l) => l.startsWith('|')).map((l) => l.split('|')[1]?.trim().toLowerCase()).filter(Boolean));
+
+/** Rows go after the last table row. Terms already in the table are skipped. */
+export function addDictionaryRows(text, entries) {
+  const have = dictionaryTerms(text);
+  const rows = entries.filter((e) => !have.has(e.term.toLowerCase()))
+    .map((e) => `| ${e.term} | ${e.meaning || 'Name from a debrief'} | ${e.heard_as ? `Speech-to-text hears "${e.heard_as}"` : 'Typed in a debrief'} |`);
+  if (!rows.length) return text;
+  const lines = text.split('\n');
+  let last = -1;
+  lines.forEach((l, i) => { if (l.startsWith('|')) last = i; });
+  if (last < 0) return text.replace(/\s*$/, '\n') + rows.join('\n') + '\n';
+  lines.splice(last + 1, 0, ...rows);
+  return lines.join('\n');
 }
 
 // ---------- log.md ----------
