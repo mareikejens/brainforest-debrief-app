@@ -11,6 +11,23 @@ export function addDays(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/** Date table the model reads instead of doing arithmetic. */
+export function calendar(fromIso, toIso) {
+  const out = [];
+  for (let d = fromIso; d <= toIso && out.length < 200; d = addDays(d, 1)) {
+    out.push(`${d} ${new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' })}`);
+  }
+  return out.join('\n');
+}
+
+/** Why "Yes" is disabled, in words. null = ready to write. */
+export function writeBlocker(plan) {
+  if (plan.questions.length) return 'Answer the question(s) above first, in the box.';
+  if (!plan.meeting_date) return 'The meeting date is missing: type it in the box (e.g. "we met on 30 October").';
+  if (!plan.interaction) return 'Nothing new to write: everything in this memo is already in the contact. Use Cancel.';
+  return null;
+}
+
 const oneLine = (s) => String(s ?? '').replace(/\s+/g, ' ').replace(/^[-*•]\s*/, '').trim();
 const BAD_TAG = /[|/\\:*?"<>#^[\]]/g;
 const GENERIC = /^(untitled|untitled \d+|new note)$/i;
@@ -189,6 +206,16 @@ export function appendLog(text, { today, memoBase, person, isNew }) {
 export function renderPreview(plan, { person, file, isNew, memoBase, today }) {
   const out = [];
   out.push(`Target: ${isNew ? 'new contact' : 'append to'} ${file}`, `Raw memo (already saved): ${memoBase}.md`, '');
+  if (isNew && plan.meeting_date && plan.interaction) {
+    // A new contact is shown exactly as it will be written: template layout, dates and all.
+    out.push('The new note, exactly as it will be written:', '', renderNewContact(person, plan, { memoBase, today }).trim(), '');
+    const tagsWhy = plan.tags.map((t) => `${t.name} (${t.existing ? 'existing' : 'new'}${t.why ? `: ${t.why}` : ''})`);
+    if (tagsWhy.length) out.push('Why these tags:', ...tagsWhy.map((t) => `  ${t}`), '');
+    if (plan.open_questions.length) out.push('Open questions:', ...plan.open_questions.map((q) => `  ⚠️ ${q}`), '');
+    if (plan.left_out.length) out.push('Left out:', ...plan.left_out.map((q) => `  ${q}`), '');
+    out.push('LinkedIn: not looked up here. Say "linkedin <Name>" in Claude Code if you want it.');
+    return out.join('\n').trim();
+  }
   if (!plan.meeting_date) out.push('⚠️ Meeting date missing: tell me when you met, then I can build the lines.', '');
   const section = (title, items) => items.length && out.push(title, ...items.map((i) => `  ${i}`), '');
   if (plan.connected_by) out.push(`ConnectedBy: ${plan.connected_by}`, '');

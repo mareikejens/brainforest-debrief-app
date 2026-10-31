@@ -14,7 +14,8 @@ Sorting:
 - connected_by: how she knows them, only if she said so. Link an existing contact if named in full.
 - followups: every to-do and homework. owner "me" (Mareike) or "them". due only if she gave a date. If whose to-do it is cannot be told, use questions.
 - interaction: one short line describing this meeting, in her words.
-- meeting_date: YYYY-MM-DD from what she said (the form date may be empty or wrong; what she says wins). Convert "last Tuesday" etc. only when the meeting date or today's date makes it unambiguous. Today's date is given. Otherwise null.
+- meeting_date: YYYY-MM-DD from what she said or confirmed (the form date may be empty or wrong; what she says wins). Otherwise null.
+- Relative dates ("in two weeks", "next Tuesday", "mid-November"): convert them yourself to a YYYY-MM-DD using the CALENDAR given (never do date arithmetic in your head: count rows in the calendar). Count from the meeting date unless she clearly meant today. A to-do with such a date gets it as due. Keep a vague span ("mid-November") as words in the text and set due to its middle day only if she gave no exact day.
 - tags: 3 to 6, topics, fields, communities, themes, places that came up. Not people, not private life facts. Prefer a name from the vault note list (same form, case-insensitively), set existing true; otherwise a new name, existing false. why: a few words.
 - People she mentioned but did not meet: full name given -> write [[@ Full Name]] (use [[@ Full Name|spoken form]] if the text used a short form); first name only -> plain text. Never wikilink a generic name like Untitled. Apply to every full-name mention in every field.
 - No source tags such as "(from memory)" on any line. One bullet per fact, short, no trailing period needed.
@@ -27,11 +28,12 @@ If a feedback message and a previous plan are given, apply the feedback to the p
 Return exactly this JSON shape:
 {"meeting_date":null,"connected_by":null,"private":[],"business":[],"followups":[{"owner":"me","text":"","due":null}],"interaction":"","tags":[{"name":"","existing":false,"why":""}],"open_questions":[],"left_out":[],"questions":[]}`;
 
-export function buildUser({ person, today, formDate, transcript, existing, dictionary, notes, previous, feedback }) {
+export function buildUser({ calendar, person, today, formDate, transcript, existing, dictionary, notes, previous, feedback }) {
   return [
     `Person (typed by Mareike, authoritative): ${person}`,
     `Today: ${today}`,
     `Meeting date entered in the form: ${formDate || 'not given'}`,
+    `\nCALENDAR (date, weekday):\n${calendar}`,
     existing ? `\nEXISTING CONTACT FILE (append only, do not repeat):\n${existing}` : '\nNo existing contact file: this is a new contact.',
     `\nDICTIONARY (exact spellings):\n${dictionary || '(none)'}`,
     `\nVAULT NOTE NAMES (for tag reuse):\n${notes.join(', ')}`,

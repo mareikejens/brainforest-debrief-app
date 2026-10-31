@@ -2,7 +2,7 @@
 import { memoBaseName, renderMemo } from './memo.mjs';
 import { callClaude } from './anthropic.js';
 import { SYSTEM, buildUser } from './process-prompt.js';
-import { appendLog, extractJson, normalizePlan, patchContact, renderNewContact, todayZurich, unprocessedMemos } from './lib.js';
+import { addDays, appendLog, calendar, extractJson, normalizePlan, patchContact, renderNewContact, todayZurich, unprocessedMemos } from './lib.js';
 
 const DICT = '.claude/skills/voice-contact-debrief/dictionary.md';
 const base = (p) => p.split('/').pop().replace(/\.md$/, '');
@@ -39,7 +39,9 @@ export async function saveMemo({ vault, index, person, meetingDate, turns, origi
 export async function makePlan({ anthropicKey, vault, index, person, formDate, transcript, existingFile, previous, feedback, fetchFn }) {
   const existing = existingFile ? (await vault.read(`${index.contactsDir}/${existingFile}`))?.text : null;
   const dictionary = (await vault.read(DICT))?.text ?? '';
-  const user = buildUser({ person, today: todayZurich(), formDate, transcript, existing, dictionary, notes: index.notes, previous, feedback });
+  const today = todayZurich();
+  const start = addDays(formDate && formDate < today ? formDate : today, -30);
+  const user = buildUser({ calendar: calendar(start, addDays(today, 120)), person, today, formDate, transcript, existing, dictionary, notes: index.notes, previous, feedback });
   let lastErr;
   for (let i = 0; i < 2; i++) {
     try {

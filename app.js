@@ -2,10 +2,10 @@ import { open, seal } from './secrets.js';
 import { Vault } from './vault.js';
 import * as eleven from './eleven.js';
 import { applyPlan, loadIndex, makePlan, saveMemo, unprocessed } from './flow.js';
-import { findCandidates, contactFile, parseMemo, renderPreview, todayZurich } from './lib.js';
+import { findCandidates, contactFile, parseMemo, renderPreview, todayZurich, writeBlocker } from './lib.js';
 
 const $ = (id) => document.getElementById(id);
-const SECTIONS = ['setup', 'unlock', 'home', 'live', 'pick', 'review'];
+const SECTIONS = ['setup', 'unlock', 'home', 'live', 'pick', 'review', 'done'];
 const show = (...names) => SECTIONS.forEach((s) => ($('s-' + s).hidden = !names.includes(s)));
 const say = (msg, err = false) => { $('result').textContent = msg; $('result').className = err ? 'err' : 'hint'; };
 const STORE = 'debrief.sealed.v1';
@@ -123,6 +123,8 @@ async function finish() {
 async function resume(memoBase) {
   say('Loading the memo…');
   try {
+    const log = (await vault.read('log.md'))?.text ?? '';
+    if (log.includes(`Voice Memos/${memoBase}`)) { say(`${memoBase} is already processed.`); return enter(); }
     const m = parseMemo((await vault.read(`${index.memoDir}/${memoBase}.md`)).text);
     const name = m.person || prompt('Whose memo is this? Type the full name.');
     if (!name) return say('');
@@ -157,18 +159,27 @@ function render() {
   $('preview').textContent = renderPreview(p, { person: job.person, file: job.target.file, isNew: job.target.isNew, memoBase: job.memoBase, today: todayZurich() });
   $('qbox').hidden = !p.questions.length;
   $('questions').replaceChildren(...p.questions.map((q) => Object.assign(document.createElement('li'), { textContent: q })));
-  $('write').disabled = Boolean(p.questions.length) || !p.meeting_date || !p.interaction;
+  const why = writeBlocker(p);
+  $('write').disabled = Boolean(why);
+  $('why').textContent = why || '';
   $('feedback').value = ''; say(''); show('review');
 }
 $('revise').onclick = () => { const f = $('feedback').value.trim(); if (f) plan(f); };
+$('done-next').onclick = () => { $('person').value = ''; $('date').value = ''; enter(); };
 $('cancel').onclick = () => { job = null; say('Cancelled. The transcript stays saved in your vault; it will show up under "Saved but not processed".'); enter(); };
 $('write').onclick = async () => {
   $('write').disabled = $('revise').disabled = true; say('Writing to the vault…');
   try {
     await applyPlan({ vault, index, person: job.person, plan: job.plan, memoBase: job.memoBase, target: job.target });
     const w = job.target.warnings?.length ? ' Note: ' + job.target.warnings.join(' ') : '';
-    const done = `${job.person}: ${job.target.isNew ? 'new contact written' : 'contact updated'} and logged. Obsidian picks it up on its next sync.${w}`;
-    job = null; await enter(); say(done);
+    const url = `https://github.com/${K.repo}/blob/main/${[index.contactsDir, job.target.file].map(encodeURIComponent).join('/')}`;
+    $('done-title').textContent = `✓ Written: ${job.target.file.replace(/\.md$/, '')}`;
+    $('done-body').innerHTML = '';
+    $('done-body').append(
+      `${job.target.isNew ? 'New contact created' : 'Contact updated'}, memo and log.md committed to your vault. Obsidian on the Mac shows it after its next sync (up to 10 minutes). `,
+      Object.assign(document.createElement('a'), { href: url, target: '_blank', rel: 'noopener', textContent: 'See it on GitHub now' }),
+      w ? ` ${w}` : '');
+    say(''); show('done'); job = null;
   } catch (e) { say(e.message, true); $('write').disabled = $('revise').disabled = false; }
 };
 

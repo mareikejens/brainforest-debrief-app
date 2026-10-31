@@ -20,6 +20,7 @@ export class Vault {
   async api(path, init = {}) {
     const res = await this.fetchFn(API + path, {
       ...init,
+      cache: 'no-store', // GitHub says max-age=60: a cached log.md made a processed memo look unprocessed
       headers: { authorization: `Bearer ${this.token}`, accept: 'application/vnd.github+json', ...(init.body && { 'content-type': 'application/json' }) },
     });
     if (res.status === 404) return null;
