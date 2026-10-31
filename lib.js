@@ -295,6 +295,16 @@ export function renderPreview(plan, { person, file, isNew, memoBase, today }) {
   return out.join('\n').trim();
 }
 
+// ---------- history ----------
+/** Debriefs recorded in log.md (app and Claude Code alike), newest first. */
+export function recentDebriefs(logText, n = 8) {
+  const out = [];
+  for (const m of logText.matchAll(/^## \[(\d{4}-\d{2}-\d{2})\] ingest \| Voice Memos\/.+? → \[\[@ ([^\]|]+)\]\]\s*\n- (New|Updated)/gm)) {
+    out.push({ date: m[1], person: m[2].trim(), isNew: m[3] === 'New' });
+  }
+  return out.reverse().slice(0, n);
+}
+
 // ---------- memos ----------
 export const unprocessedMemos = (memoBasenames, logText) => memoBasenames.filter((b) => !logText.includes(b)).sort().reverse();
 

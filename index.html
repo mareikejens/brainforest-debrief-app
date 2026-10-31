@@ -72,7 +72,7 @@
   @media (prefers-reduced-motion: reduce) { .edge.new, .halo { animation:none; } }
 
   .state { text-align:center; margin:-6px 0 0; font-size:.72rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
-  #log { display:flex; flex-direction:column; gap:10px; max-height:38vh; overflow:auto; }
+  #log { display:flex; flex-direction:column; gap:10px; }
   .say { font-size:.94rem; line-height:1.45; padding-top:10px; border-top:1px solid var(--edge); }
   .say:first-child { border-top:0; padding-top:0; }
   .say .who { font-size:.64rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:2px; }
@@ -150,6 +150,7 @@
     </div>
     <button class="btn small" id="face-nudge" hidden style="align-self:center">Turn on Face ID unlock →</button>
     <div class="glass" id="pending" hidden><h2>Waiting for your yes</h2><div id="memos"></div></div>
+    <div class="glass" id="history" hidden><h2>Recent debriefs</h2><div id="recent"></div></div>
   </section>
 
   <!-- live -->
@@ -186,9 +187,7 @@
     <h1 id="rev-title"></h1>
     <svg class="graph" id="g-rev"></svg>
     <div class="glass" id="rich"></div>
-    <details class="glass raw"><summary>Exact text that will be written</summary><pre id="preview"></pre></details>
     <div class="note" id="qbox" hidden><b>I need an answer</b><ul id="questions"></ul></div>
-    <div class="glass" id="extras" hidden><h2>Also add</h2><div id="extra-list"></div></div>
     <div class="glass" id="libox" hidden>
       <h2>LinkedIn</h2>
       <a class="btn small" id="li-find" target="_blank" rel="noopener">Find on LinkedIn →</a>
@@ -210,7 +209,8 @@
     <svg class="graph" id="g-done"></svg>
     <h1 id="done-title"></h1>
     <div class="glass"><p id="done-body" style="margin:0"></p></div>
-    <button class="btn go" id="done-next">Next debrief</button>
+    <a class="btn go" id="open-obsidian">Open in Obsidian</a>
+    <button class="btn" id="done-next">Next debrief</button>
   </section>
 
   <!-- settings -->
@@ -223,6 +223,7 @@
       <label for="x-gh">GitHub token</label><input id="x-gh" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-repo">Vault repo</label><input id="x-repo" autocomplete="off">
       <label for="x-agent">ElevenLabs agent ID</label><input id="x-agent" autocomplete="off">
+      <label for="x-vault">Obsidian vault name (as shown in the Obsidian app)</label><input id="x-vault" autocomplete="off">
       <label for="x-pass">Passphrase (required to save)</label><input id="x-pass" type="password" autocomplete="current-password">
       <button class="btn go wide" id="x-save">Save</button>
     </div>

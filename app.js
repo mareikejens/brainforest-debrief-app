@@ -4,7 +4,7 @@ import { Vault } from './vault.js';
 import * as eleven from './eleven.js';
 import { drawGraph, mentions } from './graph.js';
 import { applyPlan, loadIndex, makePlan, newDictionaryEntries, saveMemo, unprocessed } from './flow.js';
-import { cleanLinkedIn, contactFile, existingLinkedIn, findCandidates, linkedInSearchUrl, parseMemo, renderPreview, todayZurich, writeBlocker } from './lib.js';
+import { recentDebriefs, cleanLinkedIn, contactFile, existingLinkedIn, findCandidates, linkedInSearchUrl, parseMemo, todayZurich, writeBlocker } from './lib.js';
 
 const $ = (id) => document.getElementById(id);
 const SECTIONS = ['setup', 'unlock', 'home', 'live', 'pick', 'working', 'review', 'done', 'settings'];
@@ -21,6 +21,8 @@ const store = {
   del: (k) => localStorage.removeItem(k),
 };
 
+const VAULT_NAME_KEY = 'debrief.obsidianVault';
+const obsidianVault = () => localStorage.getItem(VAULT_NAME_KEY) || config.obsidianVault || 'Obsidian Master Vault - Brainforest';
 let K = null;                // decrypted keys, in memory only
 let vault = null, index = null, names = [];
 let job = null;              // the debrief being processed
@@ -65,7 +67,7 @@ async function faceOffer() {
   const can = !store.get(FACE_KEY) && (await faceid.faceIdAvailable().catch(() => false));
   $('x-face-box').hidden = !can; $('face-nudge').hidden = !can;
 }
-$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; say(''); faceOffer(); show('settings'); };
+$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; $('x-vault').value = obsidianVault(); say(''); faceOffer(); show('settings'); };
 $('face-nudge').onclick = () => $('gear').click();
 $('x-face').onclick = async () => {        // a tap is required: Safari only shows the Face ID sheet after a user gesture
   try { store.set(FACE_KEY, await faceid.enroll(K)); say('Face ID is on. Next time, unlock with Face ID.'); faceOffer(); }
@@ -78,6 +80,7 @@ $('x-save').onclick = async () => {
   const pick = (id, old) => $(id).value.trim() || old;
   const k = { elevenKey: pick('x-el', current.elevenKey), anthropicKey: pick('x-an', current.anthropicKey), githubToken: pick('x-gh', current.githubToken), repo: pick('x-repo', current.repo), agentId: pick('x-agent', current.agentId) };
   store.set(PASS_KEY, await seal(k, $('x-pass').value));
+  if ($('x-vault').value.trim()) localStorage.setItem(VAULT_NAME_KEY, $('x-vault').value.trim());
   let note = '';
   const face = store.get(FACE_KEY);
   if (face) { try { store.set(FACE_KEY, await faceid.seal(k, faceid.credentialId(face))); } catch { note = ' Face ID was not updated: unlock with the passphrase once, then save again.'; } }
@@ -111,6 +114,16 @@ async function enter() {
       btn.onclick = () => resume(b);
       row.append(label, btn); return row;
     }));
+    const recent = recentDebriefs(index.log);
+    $('history').hidden = !recent.length;
+    $('recent').replaceChildren(...recent.map((r) => {
+      const row = Object.assign(document.createElement('a'), { className: 'memo', style: 'color:inherit;text-decoration:none' });
+      row.href = `obsidian://open?vault=${encodeURIComponent(obsidianVault())}&file=${encodeURIComponent(`${index.contactsDir}/@ ${r.person}`)}`;
+      const label = document.createElement('span'); label.textContent = r.person;
+      label.append(Object.assign(document.createElement('small'), { textContent: new Date(r.date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + (r.isNew ? ' · new' : ' · updated') }));
+      row.append(label, Object.assign(document.createElement('span'), { className: 'hint', textContent: '›', style: 'margin:0;font-size:1.2rem' }));
+      return row;
+    }));
   } catch (e) { say(e.message, true); }
   homeGraph();
   faceOffer();
@@ -130,7 +143,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 function liveGraph(speaking) {
   const said = turns.filter((t) => t.role === 'user').map((t) => t.text).join(' ');
-  const nodes = mentions(said, names).map((label) => ({ label, fresh: true }));
+  const nodes = uniqueNodes(mentions(said, names).map((label) => ({ label, fresh: true })), person);
   drawGraph($('g-live'), { center: person, nodes, mode: 'live' });
   $('g-live').classList.toggle('speaking', Boolean(speaking));
 }
@@ -139,7 +152,7 @@ function addTurn(role, text) {
   const d = document.createElement('div');
   d.className = 'say ' + (role === 'user' ? 'me' : 'ai');
   d.append(Object.assign(document.createElement('span'), { className: 'who', textContent: role === 'user' ? 'You' : 'Interviewer' }), text);
-  $('log').append(d); $('log').scrollTop = $('log').scrollHeight;
+  $('log').replaceChildren(d);       // only the latest message: the full transcript lives in memory and in the memo
   if (role === 'user') liveGraph();
 }
 const setState = (label, speaking) => { $('state').textContent = label; $('g-live').classList.toggle('speaking', Boolean(speaking)); };
@@ -237,7 +250,8 @@ let workTimer = null;
 function working(name, first) {
   clearInterval(workTimer);
   $('work-title').textContent = name;
-  const nodes = mentions((job?.transcript || turns.filter((t) => t.role === 'user').map((t) => t.text).join(' ')), names).map((label) => ({ label, fresh: true }));
+  const said = job?.transcript || turns.filter((t) => t.role === 'user').map((t) => t.text).join(' ');
+  const nodes = uniqueNodes(mentions(said, names).map((label) => ({ label, fresh: true })), name);
   drawGraph($('g-work'), { center: name, nodes, mode: 'working' });
   const lines = [first || 'Reading the transcript…', 'Checking what the note already says…', 'Matching your tags…', 'Working out the dates…', 'Building the preview…'];
   let i = 0; $('work-line').textContent = lines[0];
@@ -275,9 +289,15 @@ async function plan(feedback) {
   }
 }
 
+/** One node per name (case-insensitive), and never the person being debriefed. */
+function uniqueNodes(nodes, self) {
+  const seen = new Set([String(self || '').toLowerCase()]);
+  return nodes.filter((n) => { const k = n.label.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 7);
+}
 function previewNodes(p) {
-  const people = [...new Set([...p.private, ...p.business, ...p.followups.map((f) => f.text), p.connected_by || ''].join(' ').matchAll(/\[\[@ ([^\]|]+)/g))].map((m) => m[1]);
-  return [...p.tags.map((t) => ({ label: t.name, fresh: !t.existing })), ...people.map((label) => ({ label }))].slice(0, 7);
+  // A Set of match objects never dedupes (each match is a new object): collect the names first.
+  const people = [...new Set([...[...p.private, ...p.business, ...p.followups.map((f) => f.text), p.connected_by || ''].join(' ').matchAll(/\[\[@ ([^\]|]+)/g)].map((m) => m[1].trim()))];
+  return uniqueNodes([...p.tags.map((t) => ({ label: t.name, fresh: !t.existing })), ...people.map((label) => ({ label }))], job?.person);
 }
 
 // The preview as you will read it in Obsidian; the exact Markdown sits one tap below.
@@ -324,6 +344,8 @@ function richPreview(p) {
     box.append(wrap);
   }
   if (p.linkedin || p.linkedinKept) { h('LinkedIn'); line(p.linkedin || p.linkedinKept, 'add muted'); }
+  if (p.talking_point) { h('Talking point'); line(p.talking_point); }
+  if (job.newDict?.length) { h('Dictionary'); job.newDict.forEach((d) => line(`${d.term}${d.meaning ? ' — ' + d.meaning : ''}`)); }
   if (p.open_questions.length) { h('Open questions'); p.open_questions.forEach((q) => line('⚠️ ' + q, 'add muted')); }
   if (p.left_out.length) { h('Left out'); p.left_out.forEach((q) => line(q, 'add muted')); }
 }
@@ -336,22 +358,8 @@ function render() {
   $('rev-title').textContent = job.person;
   drawGraph($('g-rev'), { center: null, nodes: previewNodes(p), mode: 'preview' });
   richPreview(p);
-  $('preview').textContent = renderPreview(p, { person: job.person, file: job.target.file, isNew: job.target.isNew, memoBase: job.memoBase, today: todayZurich() });
   $('qbox').hidden = !p.questions.length;
   $('questions').replaceChildren(...p.questions.map((q) => Object.assign(document.createElement('li'), { textContent: q })));
-
-  // extras: talking point and dictionary, ticked by default
-  const extras = [];
-  if (p.talking_point) extras.push({ id: 'x-tp', text: `Talking point: ${p.talking_point}` });
-  (job.newDict || []).forEach((d, i) => extras.push({ id: 'x-d' + i, text: `Dictionary: ${d.term}${d.meaning ? ' — ' + d.meaning : ''}` }));
-  $('extras').hidden = !extras.length;
-  $('extra-list').replaceChildren(...extras.map((x) => {
-    const lab = document.createElement('label'); lab.className = 'check'; lab.style.textTransform = 'none'; lab.style.letterSpacing = '0';
-    const box = Object.assign(document.createElement('input'), { type: 'checkbox', id: x.id, checked: job.ticks?.[x.id] ?? true });
-    box.onchange = () => { job.ticks = { ...job.ticks, [x.id]: box.checked }; };
-    lab.append(box, Object.assign(document.createElement('span'), { textContent: x.text, style: 'color:var(--text);font-size:.92rem' }));
-    return lab;
-  }));
 
   $('libox').hidden = Boolean(job.linkedinKept);
   $('li-find').href = linkedInSearchUrl(job.person);
@@ -371,18 +379,18 @@ $('revise').onclick = () => { const f = $('feedback').value.trim(); if (f) plan(
 $('cancel').onclick = () => { job = null; enter().then(() => say('Cancelled. The transcript stays saved under "Waiting for your yes".')); };
 $('write').onclick = async () => {
   $('write').disabled = $('revise').disabled = true; say('Writing to your vault…');
-  const ticked = (id) => document.getElementById(id)?.checked;
   try {
     await applyPlan({ vault, index, person: job.person, plan: job.plan, memoBase: job.memoBase, target: job.target,
-      extras: { talkingPoint: ticked('x-tp'), dictionary: (job.newDict || []).filter((_, i) => ticked('x-d' + i)) } });
+      extras: { talkingPoint: Boolean(job.plan.talking_point), dictionary: job.newDict || [] } });
     const w = job.target.warnings?.length ? ' ' + job.target.warnings.join(' ') : '';
-    const url = `https://github.com/${K.repo}/blob/main/${[index.contactsDir, job.target.file].map(encodeURIComponent).join('/')}`;
+    // Open the vault, not the note: the note only exists on this device after Obsidian has pulled,
+    // and obsidian://open on a missing file would create an empty one that then clashes with the pull.
+    const url = `obsidian://open?vault=${encodeURIComponent(obsidianVault())}`;
     drawGraph($('g-done'), { center: job.person, nodes: previewNodes(job.plan), mode: 'preview' });
     $('done-title').textContent = `${job.person} is in your vault`;
     $('done-body').replaceChildren(
-      `${job.target.isNew ? 'New contact' : 'Contact updated'}, memo and log committed. Obsidian on the Mac shows it after its next sync. `,
-      Object.assign(document.createElement('a'), { href: url, target: '_blank', rel: 'noopener', textContent: 'Open on GitHub', style: 'color:var(--soft)' }),
-      w);
+      `${job.target.isNew ? 'New contact' : 'Contact updated'}, memo and log committed.${w}`);
+    $('open-obsidian').href = url;
     say(''); show('done'); job = null;
   } catch (e) { say(e.message, true); }
   finally { $('write').disabled = $('revise').disabled = false; }
