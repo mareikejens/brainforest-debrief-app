@@ -148,6 +148,7 @@
       <button class="btn go wide icon" id="start">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Start debrief</button>
     </div>
+    <button class="btn small" id="face-nudge" hidden style="align-self:center">Turn on Face ID unlock →</button>
     <div class="glass" id="pending" hidden><h2>Waiting for your yes</h2><div id="memos"></div></div>
   </section>
 
@@ -224,6 +225,11 @@
       <label for="x-agent">ElevenLabs agent ID</label><input id="x-agent" autocomplete="off">
       <label for="x-pass">Passphrase (required to save)</label><input id="x-pass" type="password" autocomplete="current-password">
       <button class="btn go wide" id="x-save">Save</button>
+    </div>
+    <div class="glass" id="x-face-box" hidden>
+      <h2>Face ID</h2>
+      <p class="hint" style="margin:0 0 12px">Unlock with Face ID instead of typing the passphrase.</p>
+      <button class="btn go wide icon" id="x-face" style="margin-top:0">Turn on Face ID</button>
     </div>
     <div class="row"><button class="btn" id="x-back">Back</button><button class="btn" id="forget">Forget keys on this device</button></div>
   </section>

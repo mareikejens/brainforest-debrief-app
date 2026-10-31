@@ -61,7 +61,16 @@ $('unlock-go').onclick = async () => {
 $('u-pass').onkeydown = (e) => e.key === 'Enter' && $('unlock-go').click();
 
 // ---------- settings ----------
-$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; say(''); show('settings'); };
+async function faceOffer() {
+  const can = !store.get(FACE_KEY) && (await faceid.faceIdAvailable().catch(() => false));
+  $('x-face-box').hidden = !can; $('face-nudge').hidden = !can;
+}
+$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; say(''); faceOffer(); show('settings'); };
+$('face-nudge').onclick = () => $('gear').click();
+$('x-face').onclick = async () => {        // a tap is required: Safari only shows the Face ID sheet after a user gesture
+  try { store.set(FACE_KEY, await faceid.enroll(K)); say('Face ID is on. Next time, unlock with Face ID.'); faceOffer(); }
+  catch (e) { say(e.message || 'Face ID was not set up.', true); }
+};
 $('x-back').onclick = () => enter();
 $('x-save').onclick = async () => {
   let current;
@@ -104,6 +113,7 @@ async function enter() {
     }));
   } catch (e) { say(e.message, true); }
   homeGraph();
+  faceOffer();
 }
 function homeGraph() {
   const pool = (index ? index.notes : []).filter((n) => n.length >= 3 && n.length <= 16 && !/^\d/.test(n));
