@@ -112,7 +112,10 @@ async function enter() {
       if (m) label.append(Object.assign(document.createElement('small'), { textContent: m[1] }));
       const btn = Object.assign(document.createElement('button'), { className: 'btn small', textContent: 'Review' });
       btn.onclick = () => resume(b);
-      row.append(label, btn); return row;
+      const del = Object.assign(document.createElement('button'), { className: 'btn ghost small', textContent: 'Discard' });
+      del.onclick = async () => { if (await discard(b, m ? m[2] : b)) { await enter(); say('Recording discarded.'); } };
+      const acts = document.createElement('span'); acts.style.display = 'flex'; acts.style.gap = '4px'; acts.append(del, btn);
+      row.append(label, acts); return row;
     }));
     const recent = recentDebriefs(index.log);
     $('history').hidden = !recent.length;
@@ -139,7 +142,12 @@ $('person').oninput = homeGraph;
 // ---------- interview ----------
 let conversation = null, turns = [], convIds = [], finishing = false, person = '', meetingDate = '', wake = null;
 const keepAwake = async () => { try { wake = await navigator.wakeLock?.request('screen'); } catch { wake = null; } };
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && conversation && !finishing) keepAwake(); });
+// Back in the app after the phone locked or you switched apps: pick the interview up again by itself.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || finishing) return;
+  if (!$('interrupted').hidden && !$('s-live').hidden) return $('resume').click();
+  if (conversation) keepAwake();
+});
 
 function liveGraph(speaking) {
   const said = turns.filter((t) => t.role === 'user').map((t) => t.text).join(' ');
@@ -191,10 +199,12 @@ $('start').onclick = async () => {
     show('home'); say(e.name === 'NotAllowedError' ? 'Microphone blocked. Allow it for this site in the browser settings.' : e.message, true);
   } finally { $('start').disabled = false; }
 };
+let resuming = false;
 $('resume').onclick = async () => {
+  if (resuming) return; resuming = true;
   $('interrupted').hidden = true; setState('Connecting');
   const previous = turns.map((t) => `${t.role === 'user' ? 'Mareike' : 'Interviewer'}: ${t.text}`).join('\n').slice(-6000);
-  try { await keepAwake(); await connect(previous); } catch (e) { $('interrupted').hidden = false; say(e.message, true); }
+  try { await keepAwake(); await connect(previous); } catch (e) { $('interrupted').hidden = false; say(e.message, true); } finally { resuming = false; }
 };
 $('save-now').onclick = () => finish();
 $('typeform').onsubmit = (e) => {
@@ -216,7 +226,7 @@ $('abort').onclick = async () => {
   wake?.release?.(); wake = null; conversation = null;
   const ids = convIds; convIds = []; turns = [];
   show('home'); say('Interview cancelled. Nothing was saved.');
-  await Promise.all(ids.map((id) => eleven.deleteConversation(K.elevenKey, id)));
+  await Promise.all(ids.map(async (id) => { await eleven.transcript(K.elevenKey, id).catch(() => null); return eleven.deleteConversation(K.elevenKey, id); }));
 };
 window.addEventListener('beforeunload', (e) => { if (conversation && !finishing) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -387,7 +397,14 @@ $('li-url').oninput = () => {
   const keep = $('feedback').value; render(); $('feedback').value = keep;
 };
 $('revise').onclick = () => { const f = $('feedback').value.trim(); if (f) plan(f); };
-$('cancel').onclick = () => { job = null; enter().then(() => say('Cancelled. The transcript stays saved under "Waiting for your yes".')); };
+$('cancel').onclick = () => { job = null; enter().then(() => say('Kept under "Waiting for your yes".')); };
+$('back').onclick = () => $('cancel').click();
+async function discard(memoBase, person) {
+  if (!confirm(`Discard the recording of ${person}? It is deleted from your vault and nothing is written.`)) return false;
+  try { await vault.remove(`${index.memoDir}/${memoBase}.md`, `voice-debrief: discard ${person}`); return true; }
+  catch (e) { say(e.message, true); return false; }
+}
+$('discard').onclick = async () => { if (job && await discard(job.memoBase, job.person)) { job = null; await enter(); say('Recording discarded.'); } };
 $('write').onclick = async () => {
   $('write').disabled = $('revise').disabled = true; say('Writing to your vault…');
   try {

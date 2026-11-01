@@ -162,9 +162,10 @@
     <svg class="graph" id="g-live"></svg>
     <p class="state" id="state">Connecting</p>
     <div class="glass" id="interrupted" hidden>
-      <h2>The call dropped</h2>
-      <p class="hint" style="margin:0 0 12px">Everything so far is kept. Continue where you stopped, or save it as it is.</p>
-      <div class="row"><button class="btn" id="save-now">Save as is</button><button class="btn go" id="resume">Continue</button></div>
+      <h2>Paused: the phone left the app</h2>
+      <p class="hint" style="margin:0 0 12px">The interview had not finished, its questions are still to come. Everything so far is kept.</p>
+      <button class="btn go wide" id="resume" style="margin-top:0">Continue the interview</button>
+      <button class="btn ghost wide" id="save-now" style="margin-top:6px">Save without the questions</button>
     </div>
     <div class="glass"><div id="log" aria-live="polite"></div></div>
     <form class="typebar" id="typeform"><input id="typed" autocomplete="off" placeholder="Type a spelling…"><button class="btn small">Send</button></form>
@@ -186,6 +187,7 @@
 
   <!-- preview -->
   <section id="s-review" hidden>
+    <div class="top"><button class="btn ghost" id="back" style="padding-left:0">‹ Back</button><button class="btn ghost" id="discard">Discard</button></div>
     <p class="eyebrow" id="rev-eyebrow"></p>
     <h1 id="rev-title"></h1>
     <svg class="graph" id="g-rev"></svg>
@@ -204,7 +206,7 @@
       <button class="btn wide" id="revise">Update preview</button>
     </div>
     <p class="hint" id="why" style="text-align:center"></p>
-    <div class="row"><button class="btn" id="cancel">Cancel</button><button class="btn go" id="write">Yes, write it</button></div>
+    <div class="row"><button class="btn" id="cancel">Back</button><button class="btn go" id="write">Yes, write it</button></div>
   </section>
 
   <!-- done -->

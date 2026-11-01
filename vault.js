@@ -58,6 +58,14 @@ export class Vault {
     }
   }
 
+  /** Delete one file (needs its current sha). */
+  async remove(path, message) {
+    const cur = await this.read(path);
+    if (!cur) return false;
+    await this.api(`/repos/${this.repo}/contents/${enc(path)}`, { method: 'DELETE', body: JSON.stringify({ message, sha: cur.sha, branch: this.branch }) });
+    return true;
+  }
+
   /** Read, transform, write back. If someone else (Obsidian Git) pushed in between, GitHub rejects the stale sha and we re-read. */
   async modify(path, fn, message) {
     for (let i = 0; i < 4; i++) {
