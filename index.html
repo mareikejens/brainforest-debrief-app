@@ -151,6 +151,7 @@
       <button class="btn go wide icon" id="start">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Start debrief</button>
     </div>
+    <div class="note" id="token-warn" hidden></div>
     <button class="btn small" id="face-nudge" hidden style="align-self:center">Turn on Face ID unlock →</button>
     <div class="glass" id="pending" hidden><h2>Waiting for your yes</h2><div id="memos"></div></div>
     <div class="glass" id="history" hidden><h2>Recent debriefs</h2><div id="recent"></div></div>
@@ -226,6 +227,7 @@
       <label for="x-el">ElevenLabs API key</label><input id="x-el" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-an">Anthropic API key</label><input id="x-an" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-gh">GitHub token</label><input id="x-gh" type="password" autocomplete="off" placeholder="keep current">
+      <label for="x-ghexp">GitHub token expires on</label><input id="x-ghexp" type="date">
       <label for="x-repo">Vault repo</label><input id="x-repo" autocomplete="off">
       <label for="x-agent">ElevenLabs agent ID</label><input id="x-agent" autocomplete="off">
       <label for="x-vault">Obsidian vault name (as shown in the Obsidian app)</label><input id="x-vault" autocomplete="off">

@@ -15,8 +15,18 @@ export async function loadIndex(vault) {
   const memoDir = `${filesDir}/Voice Memos`;
   const under = (dir) => paths.filter((p) => p.startsWith(dir + '/') && p.endsWith('.md'));
   const log = (await vault.read('log.md'))?.text ?? '';
+  // Project notes: top-level notes in 04_ (prefixes like "! " or "🌱 " are not part of the name) and
+  // project folders with a README (linked by path, since every folder has a README).
+  const projDir = topDir(/^04_/);
+  const projects = projDir ? paths.filter((p) => p.startsWith(projDir + '/') && p.endsWith('.md')).flatMap((p) => {
+    const rest = p.slice(projDir.length + 1).split('/');
+    if (rest[0].startsWith('_')) return [];
+    if (rest.length === 1) { const link = base(p); return [{ name: link.replace(/^[!🌱\s]+/u, '').trim(), link }]; }
+    if (rest.length === 2 && rest[1] === 'README.md') return [{ name: rest[0], link: `${projDir}/${rest[0]}/README` }];
+    return [];
+  }) : [];
   return {
-    contactsDir, memoDir, log,
+    contactsDir, memoDir, log, projects,
     contacts: under(contactsDir).map((p) => p.split('/').pop()).filter((f) => f.startsWith('@ ')),
     memos: under(memoDir).map(base),
     notes: paths.filter((p) => /^0[13]_/.test(p) && p.endsWith('.md')).map(base).filter((n) => !n.startsWith('@ ')).slice(0, 2500),
@@ -47,7 +57,7 @@ export async function makePlan({ anthropicKey, vault, index, person, formDate, t
   const dictionary = (await vault.read(DICT))?.text ?? '';
   const today = todayZurich();
   const start = addDays(formDate && formDate < today ? formDate : today, -30);
-  const user = buildUser({ calendar: calendar(start, addDays(today, 120)), person, today, formDate, transcript, existing, dictionary, notes: index.notes, previous, feedback });
+  const user = buildUser({ calendar: calendar(start, addDays(today, 120)), person, today, formDate, transcript, existing, dictionary, notes: index.notes, projects: index.projects || [], previous, feedback });
   let lastErr;
   for (let i = 0; i < 2; i++) {
     try {

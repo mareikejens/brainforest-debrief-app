@@ -21,7 +21,8 @@ const store = {
   del: (k) => localStorage.removeItem(k),
 };
 
-const VAULT_NAME_KEY = 'debrief.obsidianVault';
+const VAULT_NAME_KEY = 'debrief.obsidianVault', GH_EXP_KEY = 'debrief.githubTokenExpires';
+const plusDays = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const obsidianVault = () => localStorage.getItem(VAULT_NAME_KEY) || config.obsidianVault || 'Obsidian Master Vault - Brainforest';
 let K = null;                // decrypted keys, in memory only
 let vault = null, index = null, names = [];
@@ -50,6 +51,7 @@ $('setup-go').onclick = async () => {
   const k = { elevenKey: $('k-el').value.trim(), anthropicKey: $('k-an').value.trim(), githubToken: $('k-gh').value.trim(), repo: $('k-repo').value.trim(), agentId: $('k-agent').value.trim() };
   if (Object.values(k).some((v) => !v) || !$('k-pass').value) return say('Fill in every field, including the passphrase.', true);
   store.set(PASS_KEY, await seal(k, $('k-pass').value));
+  localStorage.setItem(GH_EXP_KEY, plusDays(90));   // the token you just made: 90 days, adjustable in Settings
   ['k-el', 'k-an', 'k-gh', 'k-pass'].forEach((id) => ($(id).value = ''));
   const note = await turnOnFaceId(k);
   K = k; await enter(); if (note) say(note);
@@ -67,7 +69,7 @@ async function faceOffer() {
   const can = !store.get(FACE_KEY) && (await faceid.faceIdAvailable().catch(() => false));
   $('x-face-box').hidden = !can; $('face-nudge').hidden = !can;
 }
-$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; $('x-vault').value = obsidianVault(); say(''); faceOffer(); show('settings'); };
+$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; $('x-vault').value = obsidianVault(); $('x-ghexp').value = localStorage.getItem(GH_EXP_KEY) || ''; say(''); faceOffer(); show('settings'); };
 $('face-nudge').onclick = () => $('gear').click();
 $('x-face').onclick = async () => {        // a tap is required: Safari only shows the Face ID sheet after a user gesture
   try { store.set(FACE_KEY, await faceid.enroll(K)); say('Face ID is on. Next time, unlock with Face ID.'); faceOffer(); }
@@ -81,6 +83,9 @@ $('x-save').onclick = async () => {
   const k = { elevenKey: pick('x-el', current.elevenKey), anthropicKey: pick('x-an', current.anthropicKey), githubToken: pick('x-gh', current.githubToken), repo: pick('x-repo', current.repo), agentId: pick('x-agent', current.agentId) };
   store.set(PASS_KEY, await seal(k, $('x-pass').value));
   if ($('x-vault').value.trim()) localStorage.setItem(VAULT_NAME_KEY, $('x-vault').value.trim());
+  // New token pasted and the date left unchanged: assume a fresh 90-day token.
+  const exp = $('x-ghexp').value;
+  localStorage.setItem(GH_EXP_KEY, $('x-gh').value.trim() && exp === (localStorage.getItem(GH_EXP_KEY) || '') ? plusDays(90) : exp || plusDays(90));
   let note = '';
   const face = store.get(FACE_KEY);
   if (face) { try { store.set(FACE_KEY, await faceid.seal(k, faceid.credentialId(face))); } catch { note = ' Face ID was not updated: unlock with the passphrase once, then save again.'; } }
@@ -130,6 +135,18 @@ async function enter() {
   } catch (e) { say(e.message, true); }
   homeGraph();
   faceOffer();
+  tokenWarning();
+}
+// GitHub does not let a web page read a token's expiry, so the app keeps the date (set when you paste the token).
+function tokenWarning() {
+  const exp = localStorage.getItem(GH_EXP_KEY);
+  const days = exp ? Math.ceil((new Date(exp + 'T12:00:00') - new Date()) / 864e5) : null;
+  $('token-warn').hidden = days === null || days > 14;
+  if (days !== null && days <= 14) {
+    $('token-warn').textContent = days > 0
+      ? `Your GitHub token expires in ${days} day${days === 1 ? '' : 's'}. Make a new one (same settings) and paste it in Settings.`
+      : 'Your GitHub token has expired. Make a new one (same settings) and paste it in Settings.';
+  }
 }
 function homeGraph() {
   const pool = (index ? index.notes : []).filter((n) => n.length >= 3 && n.length <= 16 && !/^\d/.test(n));
@@ -140,6 +157,7 @@ function homeGraph() {
 $('person').oninput = homeGraph;
 
 // ---------- interview ----------
+let knownContext = '';                       // the existing contact note, for the interviewer
 let conversation = null, turns = [], convIds = [], finishing = false, person = '', meetingDate = '', wake = null;
 const keepAwake = async () => { try { wake = await navigator.wakeLock?.request('screen'); } catch { wake = null; } };
 // Back in the app after the phone locked or you switched apps: pick the interview up again by itself.
@@ -169,7 +187,7 @@ async function connect(previous) {
   const url = await eleven.signedUrl(K.elevenKey, K.agentId);
   conversation = await ElevenLabsClient.Conversation.startSession({
     signedUrl: url, connectionType: 'websocket',
-    dynamicVariables: { person, meeting_date: meetingDate ? spoken(meetingDate) : 'not given yet', today: spoken(todayZurich()), previous_conversation: previous || 'none' },
+    dynamicVariables: { person, meeting_date: meetingDate ? spoken(meetingDate) : 'not given yet', today: spoken(todayZurich()), previous_conversation: previous || 'none', known_context: knownContext || 'none' },
     onConnect: () => setState('Listening'),
     onModeChange: ({ mode }) => setState(mode === 'speaking' ? 'Interviewer speaking' : 'Listening', mode === 'speaking'),
     onMessage: ({ role, message }) => message && addTurn(role === 'user' ? 'user' : 'agent', message),
@@ -192,7 +210,14 @@ $('start').onclick = async () => {
   turns = []; convIds = []; finishing = false; $('log').replaceChildren(); $('interrupted').hidden = true; $('end').disabled = false;
   try {
     await navigator.mediaDevices.getUserMedia({ audio: true });
-    $('live-title').textContent = person; show('live'); liveGraph(); setState('Connecting');
+    // Existing contact (exact name match): the interviewer gets the note, so it asks about what is new.
+    knownContext = '';
+    const { exact } = findCandidates(person, index?.contacts || []);
+    if (exact) {
+      const note = (await vault.read(`${index.contactsDir}/${exact}`).catch(() => null))?.text || '';
+      knownContext = note.replace(/^---\n[\s\S]*?\n---\n?/, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 5000);
+    }
+    $('live-title').textContent = person + (exact ? ' · in your vault' : ' · new'); show('live'); liveGraph(); setState('Connecting');
     await keepAwake();
     await connect(null);
   } catch (e) {
@@ -317,8 +342,10 @@ function uniqueNodes(nodes, self) {
 }
 function previewNodes(p) {
   // A Set of match objects never dedupes (each match is a new object): collect the names first.
-  const people = [...new Set([...[...p.private, ...p.business, ...p.followups.map((f) => f.text), p.connected_by || ''].join(' ').matchAll(/\[\[@ ([^\]|]+)/g)].map((m) => m[1].trim()))];
-  return uniqueNodes([...p.tags.map((t) => ({ label: t.name, fresh: !t.existing })), ...people.map((label) => ({ label }))], job?.person);
+  const text = [...p.private, ...p.business, ...p.followups.map((f) => f.text), p.connected_by || ''].join(' ');
+  const people = [...new Set([...text.matchAll(/\[\[@ ([^\]|]+)/g)].map((m) => m[1].trim()))];
+  const projects = [...new Set([...text.matchAll(/\[\[(?!@ )[^\]|]+\|([^\]]+)\]\]/g)].map((m) => m[1].trim()))];
+  return uniqueNodes([...projects.map((label) => ({ label })), ...p.tags.map((t) => ({ label: t.name, fresh: !t.existing })), ...people.map((label) => ({ label }))], job?.person);
 }
 
 // The preview as you will read it in Obsidian; the exact Markdown sits one tap below.

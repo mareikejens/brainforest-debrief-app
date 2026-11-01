@@ -19,6 +19,7 @@ Sorting:
 - meeting_date: YYYY-MM-DD from what she said or confirmed (the form date may be empty or wrong; what she says wins). Otherwise null.
 - Relative dates ("in two weeks", "next Tuesday", "mid-November"): convert them yourself to a YYYY-MM-DD using the CALENDAR given (never do date arithmetic in your head: count rows in the calendar). Count from the meeting date unless she clearly meant today. A to-do with such a date gets it as due. Approximate times ("in about two weeks", "in a couple of weeks", "sometime next month", "mid-November") are reminders, not deadlines: never ask about them and never put them in questions or open_questions. Just set due to a date that fits (about two weeks = 14 days after the meeting date, next month = the 1st of next month, mid-month = the 15th) and leave the vague words out of the text.
 - tags: 3 to 6, topics, fields, communities, themes, places that came up. Not people, not private life facts. Prefer a name from the vault note list (same form, case-insensitively), set existing true; otherwise a new name, existing false. why: a few words.
+- Project notes: whenever she mentions one of the PROJECT NOTES (by its name or unmistakably), write the link exactly as given ([[link|name]]) in the bullet where it comes up, every time. A project with a note is linked, not tagged. Projects without a note stay plain text or a tag as usual.
 - People she mentioned but did not meet: full name given -> write [[@ Full Name]] (use [[@ Full Name|spoken form]] if the text used a short form); first name only -> plain text. Never wikilink a generic name like Untitled. Apply to every full-name mention in every field.
 - No source tags such as "(from memory)" on any line. One bullet per fact, short, no trailing period needed.
 - If an existing contact file is given: do not repeat anything it already says. If the transcript contradicts a line in it, put both versions in open_questions; never overwrite.
@@ -30,7 +31,7 @@ If a feedback message and a previous plan are given, apply the feedback to the p
 Return exactly this JSON shape:
 {"meeting_date":null,"connected_by":null,"talking_point":null,"dictionary":[{"term":"","meaning":"","heard_as":null}],"private":[],"business":[],"followups":[{"owner":"me","text":"","due":null}],"interaction":"","tags":[{"name":"","existing":false,"why":""}],"open_questions":[],"left_out":[],"questions":[]}`;
 
-export function buildUser({ calendar, person, today, formDate, transcript, existing, dictionary, notes, previous, feedback }) {
+export function buildUser({ calendar, person, today, formDate, transcript, existing, dictionary, notes, projects = [], previous, feedback }) {
   return [
     `Person (typed by Mareike, authoritative): ${person}`,
     `Today: ${today}`,
@@ -39,6 +40,7 @@ export function buildUser({ calendar, person, today, formDate, transcript, exist
     existing ? `\nEXISTING CONTACT FILE (append only, do not repeat):\n${existing}` : '\nNo existing contact file: this is a new contact.',
     `\nDICTIONARY (exact spellings):\n${dictionary || '(none)'}`,
     `\nVAULT NOTE NAMES (for tag reuse):\n${notes.join(', ')}`,
+    `\nPROJECT NOTES (name => link target):\n${projects.map((p) => `${p.name} => [[${p.link}|${p.name}]]`).join('\n') || '(none)'}`,
     `\nTRANSCRIPT:\n${transcript}`,
     previous ? `\nPREVIOUS PLAN:\n${JSON.stringify(previous)}\n\nFEEDBACK FROM MAREIKE:\n${feedback}` : '',
   ].join('\n');
