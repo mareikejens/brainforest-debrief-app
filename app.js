@@ -207,6 +207,17 @@ $('typeform').onsubmit = (e) => {
 let muted = false;
 $('mute').onclick = () => { muted = !muted; conversation?.setMicMuted(muted); $('mute').textContent = muted ? 'Unmute' : 'Mute'; };
 $('end').onclick = () => finish();
+// Throw the whole interview away: nothing is saved, the copy at ElevenLabs is deleted, back to the start.
+$('abort').onclick = async () => {
+  if (!confirm('Cancel this interview? Nothing is saved.')) return;
+  finishing = true;                                   // so the disconnect does not trigger a save
+  try { const id = conversation?.getId(); if (id && !convIds.includes(id)) convIds.push(id); } catch {}
+  try { await conversation?.endSession(); } catch {}
+  wake?.release?.(); wake = null; conversation = null;
+  const ids = convIds; convIds = []; turns = [];
+  show('home'); say('Interview cancelled. Nothing was saved.');
+  await Promise.all(ids.map((id) => eleven.deleteConversation(K.elevenKey, id)));
+};
 window.addEventListener('beforeunload', (e) => { if (conversation && !finishing) { e.preventDefault(); e.returnValue = ''; } });
 
 async function finish() {
