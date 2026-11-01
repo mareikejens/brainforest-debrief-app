@@ -3,6 +3,7 @@ import * as faceid from './faceid.js';
 import { Vault } from './vault.js';
 import * as eleven from './eleven.js';
 import { drawGraph, mentions } from './graph.js';
+import * as gcal from './calendar.js';
 import { applyPlan, loadIndex, makePlan, newDictionaryEntries, saveMemo, unprocessed } from './flow.js';
 import { recentDebriefs, cleanLinkedIn, contactFile, existingLinkedIn, findCandidates, linkedInSearchUrl, parseMemo, todayZurich, writeBlocker } from './lib.js';
 
@@ -22,6 +23,7 @@ const store = {
 };
 
 const VAULT_NAME_KEY = 'debrief.obsidianVault', GH_EXP_KEY = 'debrief.githubTokenExpires';
+const GCAL_ID_KEY = 'debrief.gcal.clientId', GCAL_OK_KEY = 'debrief.gcal.consented';
 const plusDays = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const obsidianVault = () => localStorage.getItem(VAULT_NAME_KEY) || config.obsidianVault || 'Obsidian Master Vault - Brainforest';
 let K = null;                // decrypted keys, in memory only
@@ -69,7 +71,7 @@ async function faceOffer() {
   const can = !store.get(FACE_KEY) && (await faceid.faceIdAvailable().catch(() => false));
   $('x-face-box').hidden = !can; $('face-nudge').hidden = !can;
 }
-$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; $('x-vault').value = obsidianVault(); $('x-ghexp').value = localStorage.getItem(GH_EXP_KEY) || ''; say(''); faceOffer(); show('settings'); };
+$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; $('x-vault').value = obsidianVault(); $('x-ghexp').value = localStorage.getItem(GH_EXP_KEY) || ''; $('x-gcal').value = localStorage.getItem(GCAL_ID_KEY) || ''; say(''); faceOffer(); show('settings'); };
 $('face-nudge').onclick = () => $('gear').click();
 $('x-face').onclick = async () => {        // a tap is required: Safari only shows the Face ID sheet after a user gesture
   try { store.set(FACE_KEY, await faceid.enroll(K)); say('Face ID is on. Next time, unlock with Face ID.'); faceOffer(); }
@@ -83,6 +85,9 @@ $('x-save').onclick = async () => {
   const k = { elevenKey: pick('x-el', current.elevenKey), anthropicKey: pick('x-an', current.anthropicKey), githubToken: pick('x-gh', current.githubToken), repo: pick('x-repo', current.repo), agentId: pick('x-agent', current.agentId) };
   store.set(PASS_KEY, await seal(k, $('x-pass').value));
   if ($('x-vault').value.trim()) localStorage.setItem(VAULT_NAME_KEY, $('x-vault').value.trim());
+  if ($('x-gcal').value.trim() !== (localStorage.getItem(GCAL_ID_KEY) || '')) {
+    localStorage.setItem(GCAL_ID_KEY, $('x-gcal').value.trim()); localStorage.removeItem(GCAL_OK_KEY); gcal.forgetToken();
+  }
   // New token pasted and the date left unchanged: assume a fresh 90-day token.
   const exp = $('x-ghexp').value;
   localStorage.setItem(GH_EXP_KEY, $('x-gh').value.trim() && exp === (localStorage.getItem(GH_EXP_KEY) || '') ? plusDays(90) : exp || plusDays(90));
@@ -136,6 +141,45 @@ async function enter() {
   homeGraph();
   faceOffer();
   tokenWarning();
+  calendarCard();
+}
+
+// ---------- today's meetings (Google Calendar) ----------
+async function calendarCard() {
+  const id = localStorage.getItem(GCAL_ID_KEY);
+  $('cal').hidden = !id;
+  if (!id) return;
+  const token = gcal.cachedToken();
+  $('cal-go').hidden = Boolean(token);
+  $('cal-go').textContent = localStorage.getItem(GCAL_OK_KEY) ? "Show today's meetings" : 'Connect Google Calendar';
+  if (!token) { $('cal-list').replaceChildren(); return; }
+  try { showMeetings(await gcal.recentMeetings(token)); }
+  catch (e) { $('cal-go').hidden = false; $('cal-list').replaceChildren(Object.assign(document.createElement('p'), { className: 'hint', textContent: e.status === 401 ? 'Tap to refresh.' : e.message })); }
+}
+$('cal-go').onclick = async () => {
+  try {
+    await gcal.signIn(localStorage.getItem(GCAL_ID_KEY), { first: !localStorage.getItem(GCAL_OK_KEY) });
+    localStorage.setItem(GCAL_OK_KEY, '1');
+    calendarCard();
+  } catch (e) { say(e.message, true); }
+};
+function showMeetings(list) {
+  const today = todayZurich();
+  if (!list.length) { $('cal-list').replaceChildren(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'No meetings since yesterday.' })); return; }
+  $('cal-list').replaceChildren(...list.slice(0, 8).map((m) => {
+    const d = new Date(m.start);
+    const row = document.createElement('div'); row.className = 'meet';
+    row.append(Object.assign(document.createElement('div'), { className: 'when', textContent: `${m.date === today ? 'Today' : 'Yesterday'} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` }));
+    row.append(Object.assign(document.createElement('div'), { className: 'title', textContent: m.title }));
+    const pick = (name) => {             // fills the form: the name (check it) and the meeting date
+      $('person').value = name; $('date').value = m.date; homeGraph();
+      $('person').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (!name) $('person').focus();
+    };
+    const chips = m.people.length ? m.people.map((p) => Object.assign(document.createElement('button'), { className: 'chip', textContent: p, onclick: () => pick(p) }))
+      : [Object.assign(document.createElement('button'), { className: 'chip solo', textContent: 'Use this meeting', onclick: () => pick('') })];
+    row.append(...chips);
+    return row;
+  }));
 }
 // GitHub does not let a web page read a token's expiry, so the app keeps the date (set when you paste the token).
 function tokenWarning() {

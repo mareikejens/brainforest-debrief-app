@@ -54,6 +54,11 @@
   .row { display:flex; gap:10px; } .row .btn { flex:1; } .row .btn.go { flex:1.6; }
   .hint { color:var(--muted); font-size:.86rem; margin:6px 0 0; }
   .err { color:var(--err) !important; }
+  .meet { padding:10px 0; border-top:1px solid var(--edge); } .meet:first-child { border-top:0; padding-top:2px; }
+  .meet .when { color:var(--muted); font-size:.78rem; }
+  .meet .title { font-size:.92rem; margin:1px 0 6px; }
+  .chip { font:inherit; font-size:.8rem; padding:5px 11px; border-radius:999px; border:1px solid var(--edge); background:rgba(255,255,255,.05); color:var(--text); margin:0 6px 6px 0; cursor:pointer; }
+  .chip.solo { color:var(--muted); }
   .memo { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 0; border-top:1px solid var(--edge); font-size:.92rem; }
   .memo:first-of-type { border-top:0; padding-top:2px; }
   .memo small { color:var(--muted); display:block; font-size:.78rem; }
@@ -144,6 +149,11 @@
   <section id="s-home" hidden>
     <h1>Who did you <span class="soft">just meet?</span></h1>
     <svg class="graph" id="g-home"></svg>
+    <div class="glass" id="cal" hidden>
+      <h2>Your recent meetings</h2>
+      <button class="btn small" id="cal-go" hidden>Show today's meetings</button>
+      <div id="cal-list"></div>
+    </div>
     <div class="glass">
       <label for="person">Person</label><input id="person" autocomplete="off" placeholder="First Last">
       <label for="date">Meeting date</label><input id="date" type="date">
@@ -228,6 +238,7 @@
       <label for="x-an">Anthropic API key</label><input id="x-an" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-gh">GitHub token</label><input id="x-gh" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-ghexp">GitHub token expires on</label><input id="x-ghexp" type="date">
+      <label for="x-gcal">Google Calendar client ID (optional)</label><input id="x-gcal" autocomplete="off" placeholder="…apps.googleusercontent.com">
       <label for="x-repo">Vault repo</label><input id="x-repo" autocomplete="off">
       <label for="x-agent">ElevenLabs agent ID</label><input id="x-agent" autocomplete="off">
       <label for="x-vault">Obsidian vault name (as shown in the Obsidian app)</label><input id="x-vault" autocomplete="off">
