@@ -5,7 +5,7 @@ import * as eleven from './eleven.js';
 import { drawGraph, mentions } from './graph.js';
 import * as gcal from './calendar.js';
 import { applyPlan, loadIndex, makePlan, newDictionaryEntries, saveMemo, unprocessed } from './flow.js';
-import { recentDebriefs, cleanLinkedIn, contactFile, existingLinkedIn, findCandidates, linkedInSearchUrl, parseMemo, todayZurich, writeBlocker } from './lib.js';
+import { recentDebriefs, cleanLinkedIn, contactFile, existingConnectedBy, existingLinkedIn, findCandidates, linkedInSearchUrl, parseMemo, todayZurich, writeBlocker } from './lib.js';
 
 const $ = (id) => document.getElementById(id);
 const SECTIONS = ['setup', 'unlock', 'home', 'live', 'pick', 'working', 'review', 'done', 'settings'];
@@ -107,6 +107,7 @@ async function enter() {
   const hashArgs = new URLSearchParams(location.hash.slice(1));
   if (hashArgs.get('person') && !$('person').value) $('person').value = hashArgs.get('person').slice(0, 80);
   if (/^\d{4}-\d{2}-\d{2}$/.test(hashArgs.get('date') || '') && !$('date').value) $('date').value = hashArgs.get('date');
+  showDateDay();
   try {
     index = await loadIndex(vault);
     const dict = (await vault.read('.claude/skills/voice-contact-debrief/dictionary.md').catch(() => null))?.text ?? '';
@@ -172,7 +173,7 @@ function showMeetings(list) {
     row.append(Object.assign(document.createElement('div'), { className: 'when', textContent: `${m.date === today ? 'Today' : 'Yesterday'} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` }));
     row.append(Object.assign(document.createElement('div'), { className: 'title', textContent: m.title }));
     const pick = (name) => {             // fills the form: the name (check it) and the meeting date
-      $('person').value = name; $('date').value = m.date; homeGraph();
+      $('person').value = name; $('date').value = m.date; showDateDay(); homeGraph();
       $('person').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (!name) $('person').focus();
     };
     const chips = m.people.length ? m.people.map((p) => Object.assign(document.createElement('button'), { className: 'chip', textContent: p, onclick: () => pick(p) }))
@@ -227,6 +228,16 @@ function addTurn(role, text) {
 }
 const setState = (label, speaking) => { $('state').textContent = label; $('g-live').classList.toggle('speaking', Boolean(speaking)); };
 
+function weekdayDate(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }); }
+// Show the weekday under the date field, so "Friday 13 November" stands out when you meant the 6th.
+function showDateDay() {
+  const v = $('date').value;
+  $('date-day').textContent = v ? (v > todayZurich() ? `⚠️ ${weekdayDate(v)} is in the future` : weekdayDate(v)) : 'Leave the date empty and the interviewer asks.';
+}
+$('date').max = todayZurich();
+$('date').addEventListener('input', showDateDay);
+$('date').addEventListener('change', showDateDay);
+
 async function connect(previous) {
   const url = await eleven.signedUrl(K.elevenKey, K.agentId);
   conversation = await ElevenLabsClient.Conversation.startSession({
@@ -250,6 +261,8 @@ async function connect(previous) {
 $('start').onclick = async () => {
   person = $('person').value.replace(/\s+/g, ' ').trim(); meetingDate = $('date').value;
   if (!person) return say('Type the name first.', true);
+  // The typed date is taken as the truth (the interviewer no longer asks), so catch a slip of the date wheel here.
+  if (meetingDate && meetingDate > todayZurich()) return say(`The meeting date ${weekdayDate(meetingDate)} is in the future. Fix it or leave it empty.`, true);
   say(''); $('start').disabled = true;
   turns = []; convIds = []; finishing = false; $('log').replaceChildren(); $('interrupted').hidden = true; $('end').disabled = false;
   try {
@@ -367,7 +380,9 @@ async function plan(feedback) {
   working(job.person, feedback ? 'Applying your changes…' : null);
   try {
     if (!job.target.isNew && job.linkedinKept === undefined) {
-      job.linkedinKept = existingLinkedIn((await vault.read(`${index.contactsDir}/${job.target.file}`).catch(() => null))?.text);
+      const existingText = (await vault.read(`${index.contactsDir}/${job.target.file}`).catch(() => null))?.text;
+      job.linkedinKept = existingLinkedIn(existingText);
+      job.connectedKept = existingConnectedBy(existingText);
     }
     job.plan = await makePlan({ anthropicKey: K.anthropicKey, vault, index, person: job.person, formDate: job.formDate, transcript: job.transcript,
       existingFile: job.target.isNew ? null : job.target.file, previous: feedback ? job.plan : null, feedback });
@@ -413,7 +428,11 @@ function richPreview(p) {
     d.append(Object.assign(document.createElement('span'), { className: 'box' }), s); box.append(d);
   };
   if (!p.meeting_date) line('⚠️ Meeting date missing: tell me below when you met.', 'add muted');
-  if (p.connected_by) { h('Connected by'); line(p.connected_by); }
+  if (p.connected_by) {
+    h('Connected by');
+    if (job.connectedKept) line(`Not written, the note already says: ${job.connectedKept}`, 'add muted');
+    else line(p.connected_by);
+  }
   if (p.private.length) { h('Private'); p.private.forEach((t) => line(t)); }
   if (p.business.length) { h('Business'); p.business.forEach((t) => line(t)); }
   if (p.meeting_date && p.interaction) { h('Interaction'); line(`${p.meeting_date} — ${p.interaction}`); }
@@ -494,6 +513,6 @@ $('write').onclick = async () => {
   } catch (e) { say(e.message, true); }
   finally { $('write').disabled = $('revise').disabled = false; }
 };
-$('done-next').onclick = () => { $('person').value = ''; $('date').value = ''; history.replaceState(null, '', location.pathname); enter(); };
+$('done-next').onclick = () => { $('person').value = ''; $('date').value = ''; showDateDay(); history.replaceState(null, '', location.pathname); enter(); };
 
 boot();

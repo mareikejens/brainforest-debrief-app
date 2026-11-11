@@ -43,6 +43,7 @@ export function cleanLinkedIn(raw) {
 export const linkedInSearchUrl = (person) => `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(person)}`;
 /** The URL already in a contact's LinkedIn:: field, or '' if the field is empty or missing. */
 export const existingLinkedIn = (text) => (/^\s*-?\s*LinkedIn::[ \t]*(\S*)/m.exec(text || '')?.[1] || '');
+export const existingConnectedBy = (text) => (/^\s*-?\s*ConnectedBy::[ \t]*(.*)$/m.exec(text || '')?.[1] || '').trim();
 
 const oneLine = (s) => String(s ?? '').replace(/\s+/g, ' ').replace(/^[-*•]\s*/, '').trim();
 const BAD_TAG = /[|/\\:*?"<>#^[\]]/g;
@@ -157,6 +158,13 @@ export function patchContact(text, plan, { memoBase, today }) {
       const have = new Set(lines.map((l) => l.trim()));
       lines.splice(fi + 1, 0, ...tasks.filter((t) => !have.has(t.trim()))); // new to-dos go on top
     } else lines.push('', '**Follow-up:**', ...tasks);
+  }
+
+  // ConnectedBy is filled only when empty: an existing value is never overwritten (the preview says so).
+  if (plan.connected_by) {
+    const ci = lines.findIndex((l) => /^\s*-?\s*ConnectedBy::/.test(l));
+    if (ci < 0) warnings.push('The contact has no ConnectedBy:: line; how you met is in the Interactions line only.');
+    else if (/ConnectedBy::\s*$/.test(lines[ci])) lines[ci] = lines[ci].replace(/\s*$/, ' ') + plan.connected_by;
   }
 
   if (plan.linkedin) {
