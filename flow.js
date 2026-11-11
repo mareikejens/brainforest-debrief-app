@@ -62,7 +62,10 @@ export async function makePlan({ anthropicKey, vault, index, person, formDate, t
   for (let i = 0; i < 2; i++) {
     try {
       const text = await callClaude({ apiKey: anthropicKey, system: SYSTEM, user: i ? user + '\n\nReturn ONLY the JSON object.' : user, fetchFn });
-      return normalizePlan(extractJson(text));
+      const plan = normalizePlan(extractJson(text));
+      // The typed form date is the truth unless she said otherwise; never block the Yes because the model left it out.
+      if (!plan.meeting_date && /^\d{4}-\d{2}-\d{2}$/.test(formDate || '')) plan.meeting_date = formDate;
+      return plan;
     } catch (e) { lastErr = e; if (!/JSON/.test(e.message)) throw e; }
   }
   throw lastErr;
