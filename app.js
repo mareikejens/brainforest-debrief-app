@@ -2,6 +2,7 @@ import { open, seal } from './secrets.js';
 import * as faceid from './faceid.js';
 import { Vault } from './vault.js';
 import * as eleven from './eleven.js';
+import * as gradium from './gradium.js';
 import { drawGraph, mentions } from './graph.js';
 import * as gcal from './calendar.js';
 import { applyPlan, loadIndex, makePlan, newDictionaryEntries, saveMemo, unprocessed } from './flow.js';
@@ -30,6 +31,9 @@ let K = null;                // decrypted keys, in memory only
 let vault = null, index = null, names = [];
 let job = null;              // the debrief being processed
 const config = await fetch('config.json').then((r) => r.json()).catch(() => ({}));
+const interviewer = await fetch('interviewer.json').then((r) => r.json()).catch(() => null);   // prompt + tools for the Gradium engine
+let dictText = '', audioCtx = null;
+const engine = () => (K?.engine === 'gradium' ? 'gradium' : 'elevenlabs');
 
 // ---------- unlock ----------
 async function boot() {
@@ -50,11 +54,12 @@ async function turnOnFaceId(keys) {
 }
 
 $('setup-go').onclick = async () => {
-  const k = { elevenKey: $('k-el').value.trim(), anthropicKey: $('k-an').value.trim(), githubToken: $('k-gh').value.trim(), repo: $('k-repo').value.trim(), agentId: $('k-agent').value.trim() };
-  if (Object.values(k).some((v) => !v) || !$('k-pass').value) return say('Fill in every field, including the passphrase.', true);
+  const k = { engine: $('k-engine').value, elevenKey: $('k-el').value.trim(), gradiumKey: $('k-gr').value.trim(), gradiumVoice: $('k-voice').value.trim(), anthropicKey: $('k-an').value.trim(), githubToken: $('k-gh').value.trim(), repo: $('k-repo').value.trim(), agentId: $('k-agent').value.trim() };
+  const need = k.engine === 'gradium' ? [k.gradiumKey, k.gradiumVoice] : [k.elevenKey, k.agentId];
+  if ([k.anthropicKey, k.githubToken, k.repo, ...need].some((v) => !v) || !$('k-pass').value) return say('Fill in every field for the chosen voice engine, plus the passphrase.', true);
   store.set(PASS_KEY, await seal(k, $('k-pass').value));
   localStorage.setItem(GH_EXP_KEY, plusDays(90));   // the token you just made: 90 days, adjustable in Settings
-  ['k-el', 'k-an', 'k-gh', 'k-pass'].forEach((id) => ($(id).value = ''));
+  ['k-el', 'k-gr', 'k-an', 'k-gh', 'k-pass'].forEach((id) => ($(id).value = ''));
   const note = await turnOnFaceId(k);
   K = k; await enter(); if (note) say(note);
 };
@@ -71,7 +76,7 @@ async function faceOffer() {
   const can = !store.get(FACE_KEY) && (await faceid.faceIdAvailable().catch(() => false));
   $('x-face-box').hidden = !can; $('face-nudge').hidden = !can;
 }
-$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId; $('x-vault').value = obsidianVault(); $('x-ghexp').value = localStorage.getItem(GH_EXP_KEY) || ''; $('x-gcal').value = localStorage.getItem(GCAL_ID_KEY) || ''; say(''); faceOffer(); show('settings'); };
+$('gear').onclick = () => { $('x-repo').value = K.repo; $('x-agent').value = K.agentId || ''; $('x-engine').value = engine(); $('x-voice').value = K.gradiumVoice || ''; $('x-vault').value = obsidianVault(); $('x-ghexp').value = localStorage.getItem(GH_EXP_KEY) || ''; $('x-gcal').value = localStorage.getItem(GCAL_ID_KEY) || ''; say(''); faceOffer(); show('settings'); };
 $('face-nudge').onclick = () => $('gear').click();
 $('x-face').onclick = async () => {        // a tap is required: Safari only shows the Face ID sheet after a user gesture
   try { store.set(FACE_KEY, await faceid.enroll(K)); say('Face ID is on. Next time, unlock with Face ID.'); faceOffer(); }
@@ -82,7 +87,8 @@ $('x-save').onclick = async () => {
   let current;
   try { current = await open(store.get(PASS_KEY), $('x-pass').value); } catch { return say('Wrong passphrase. Nothing changed.', true); }
   const pick = (id, old) => $(id).value.trim() || old;
-  const k = { elevenKey: pick('x-el', current.elevenKey), anthropicKey: pick('x-an', current.anthropicKey), githubToken: pick('x-gh', current.githubToken), repo: pick('x-repo', current.repo), agentId: pick('x-agent', current.agentId) };
+  const k = { engine: $('x-engine').value, gradiumVoice: pick('x-voice', current.gradiumVoice), gradiumKey: pick('x-gr', current.gradiumKey), elevenKey: pick('x-el', current.elevenKey), anthropicKey: pick('x-an', current.anthropicKey), githubToken: pick('x-gh', current.githubToken), repo: pick('x-repo', current.repo), agentId: pick('x-agent', current.agentId) };
+  if (k.engine === 'gradium' ? !(k.gradiumKey && k.gradiumVoice) : !(k.elevenKey && k.agentId)) return say(`The ${k.engine === 'gradium' ? 'Gradium key and voice ID' : 'ElevenLabs key and agent ID'} are needed for that engine. Nothing changed.`, true);
   store.set(PASS_KEY, await seal(k, $('x-pass').value));
   if ($('x-vault').value.trim()) localStorage.setItem(VAULT_NAME_KEY, $('x-vault').value.trim());
   if ($('x-gcal').value.trim() !== (localStorage.getItem(GCAL_ID_KEY) || '')) {
@@ -94,7 +100,7 @@ $('x-save').onclick = async () => {
   let note = '';
   const face = store.get(FACE_KEY);
   if (face) { try { store.set(FACE_KEY, await faceid.seal(k, faceid.credentialId(face))); } catch { note = ' Face ID was not updated: unlock with the passphrase once, then save again.'; } }
-  ['x-el', 'x-an', 'x-gh', 'x-pass'].forEach((id) => ($(id).value = ''));
+  ['x-el', 'x-gr', 'x-an', 'x-gh', 'x-pass'].forEach((id) => ($(id).value = ''));
   K = k; await enter(); say('Saved.' + note);
 };
 $('forget').onclick = () => { if (confirm('Remove the keys from this device? You can paste them again any time.')) { store.del(PASS_KEY); store.del(FACE_KEY); K = null; boot(); } };
@@ -111,6 +117,7 @@ async function enter() {
   try {
     index = await loadIndex(vault);
     const dict = (await vault.read('.claude/skills/voice-contact-debrief/dictionary.md').catch(() => null))?.text ?? '';
+    dictText = dict;
     const dictNames = dict.split('\n').filter((l) => l.startsWith('|')).map((l) => l.split('|')[1]?.trim()).filter((t) => t && t !== 'Write as' && !/^-+$/.test(t));
     names = [...index.notes, ...index.contacts.map((f) => f.replace(/^@ /, '').replace(/\.md$/, '')), ...dictNames];
     say('');
@@ -239,10 +246,7 @@ $('date').addEventListener('input', showDateDay);
 $('date').addEventListener('change', showDateDay);
 
 async function connect(previous) {
-  const url = await eleven.signedUrl(K.elevenKey, K.agentId);
-  conversation = await ElevenLabsClient.Conversation.startSession({
-    signedUrl: url, connectionType: 'websocket',
-    dynamicVariables: { person, meeting_date: meetingDate ? spoken(meetingDate) : 'not given yet', today: spoken(todayZurich()), previous_conversation: previous || 'none', known_context: knownContext || 'none' },
+  const callbacks = {
     onConnect: () => setState('Listening'),
     onModeChange: ({ mode }) => setState(mode === 'speaking' ? 'Interviewer speaking' : 'Listening', mode === 'speaking'),
     onMessage: ({ role, message }) => message && addTurn(role === 'user' ? 'user' : 'agent', message),
@@ -254,11 +258,31 @@ async function connect(previous) {
       $('interrupted').hidden = false; setState('Paused');           // phone locked, network gone: keep everything, offer to continue
       wake?.release?.(); wake = null;
     },
-  });
+  };
+  const vars = { person, meeting_date: meetingDate ? spoken(meetingDate) : 'not given yet', today: spoken(todayZurich()), previous_conversation: previous || 'none', known_context: knownContext || 'none' };
+  if (engine() === 'gradium') {
+    // Gradium only does speech, so the interviewer loop runs in this page (gradium.js): STT -> Claude -> TTS.
+    if (!interviewer) throw new Error('The interviewer prompt is missing from this build. Redeploy the app.');
+    if (!audioCtx || audioCtx.state === 'closed') throw new Error('Audio was not unlocked. Tap Start again.');
+    await Promise.race([audioCtx.resume(), new Promise((r) => setTimeout(r, 1500))]);
+    if (audioCtx.state !== 'running') throw new Error('Audio is locked by the browser. Tap Continue.');
+    const ctx = audioCtx;
+    conversation = await gradium.startSession({
+      gradiumKey: K.gradiumKey, anthropicKey: K.anthropicKey, voiceId: K.gradiumVoice,
+      system: gradium.fillPrompt(interviewer.prompt, vars, dictText), model: interviewer.model, tools: interviewer.tools, maxSeconds: interviewer.maxSeconds,
+      keywords: gradium.buildKeywords(gradium.dictionaryRows(dictText).map(([t]) => t)),
+      firstMessage: previous ? 'Back again. Where were we?' : interviewer.firstMessage.replaceAll('{{person}}', person), reconnected: Boolean(previous),
+      cb: callbacks, io: { player: new gradium.Player(ctx), startMic: (onFrame) => gradium.startMic(ctx, onFrame) },
+    });
+    return;
+  }
+  const url = await eleven.signedUrl(K.elevenKey, K.agentId);
+  conversation = await ElevenLabsClient.Conversation.startSession({ signedUrl: url, connectionType: 'websocket', dynamicVariables: vars, ...callbacks });
   try { const id = conversation.getId(); if (id && !convIds.includes(id)) convIds.push(id); } catch {}
 }
 
 $('start').onclick = async () => {
+  if (engine() === 'gradium') audioCtx = gradium.prepareAudio();     // must happen inside the tap (iOS)
   person = $('person').value.replace(/\s+/g, ' ').trim(); meetingDate = $('date').value;
   if (!person) return say('Type the name first.', true);
   // The typed date is taken as the truth (the interviewer no longer asks), so catch a slip of the date wheel here.
@@ -284,6 +308,7 @@ $('start').onclick = async () => {
 let resuming = false;
 $('resume').onclick = async () => {
   if (resuming) return; resuming = true;
+  if (engine() === 'gradium') audioCtx = gradium.prepareAudio();
   $('interrupted').hidden = true; setState('Connecting');
   const previous = turns.map((t) => `${t.role === 'user' ? 'Mareike' : 'Interviewer'}: ${t.text}`).join('\n').slice(-6000);
   try { await keepAwake(); await connect(previous); } catch (e) { $('interrupted').hidden = false; say(e.message, true); } finally { resuming = false; }

@@ -123,12 +123,15 @@
   <section id="s-setup" hidden>
     <h1>Set up <span class="soft">this device</span></h1>
     <div class="glass">
-      <p class="hint" style="margin:0 0 10px">Keys are encrypted and stay in this browser. They only go to ElevenLabs, Anthropic and GitHub.</p>
-      <label for="k-el">ElevenLabs API key</label><input id="k-el" type="password" autocomplete="off">
+      <p class="hint" style="margin:0 0 10px">Keys are encrypted and stay in this browser. They only go to the voice provider you pick (ElevenLabs or Gradium), Anthropic and GitHub.</p>
+      <label for="k-engine">Voice engine</label><select id="k-engine"><option value="elevenlabs">ElevenLabs</option><option value="gradium">Gradium</option></select>
+      <label for="k-el">ElevenLabs API key (if ElevenLabs)</label><input id="k-el" type="password" autocomplete="off">
+      <label for="k-gr">Gradium API key (if Gradium)</label><input id="k-gr" type="password" autocomplete="off">
       <label for="k-an">Anthropic API key</label><input id="k-an" type="password" autocomplete="off">
       <label for="k-gh">GitHub token (vault repo, Contents read and write)</label><input id="k-gh" type="password" autocomplete="off">
       <label for="k-repo">Vault repo</label><input id="k-repo" autocomplete="off">
-      <label for="k-agent">ElevenLabs agent ID</label><input id="k-agent" autocomplete="off">
+      <label for="k-agent">ElevenLabs agent ID (if ElevenLabs)</label><input id="k-agent" autocomplete="off">
+      <label for="k-voice">Gradium voice ID (if Gradium)</label><input id="k-voice" autocomplete="off" placeholder="from the Gradium voice library">
       <label for="k-pass">Passphrase (fallback if Face ID is unavailable)</label><input id="k-pass" type="password" autocomplete="new-password">
       <button class="btn go wide" id="setup-go">Save and turn on Face ID</button>
     </div>
@@ -234,13 +237,16 @@
     <h1>Settings</h1>
     <div class="glass">
       <p class="hint" style="margin:0 0 10px">Paste only what you want to replace. Empty fields keep the current value.</p>
+      <label for="x-engine">Voice engine</label><select id="x-engine"><option value="elevenlabs">ElevenLabs</option><option value="gradium">Gradium</option></select>
       <label for="x-el">ElevenLabs API key</label><input id="x-el" type="password" autocomplete="off" placeholder="keep current">
+      <label for="x-gr">Gradium API key</label><input id="x-gr" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-an">Anthropic API key</label><input id="x-an" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-gh">GitHub token</label><input id="x-gh" type="password" autocomplete="off" placeholder="keep current">
       <label for="x-ghexp">GitHub token expires on</label><input id="x-ghexp" type="date">
       <label for="x-gcal">Google Calendar client ID (optional)</label><input id="x-gcal" autocomplete="off" placeholder="…apps.googleusercontent.com">
       <label for="x-repo">Vault repo</label><input id="x-repo" autocomplete="off">
       <label for="x-agent">ElevenLabs agent ID</label><input id="x-agent" autocomplete="off">
+      <label for="x-voice">Gradium voice ID</label><input id="x-voice" autocomplete="off">
       <label for="x-vault">Obsidian vault name (as shown in the Obsidian app)</label><input id="x-vault" autocomplete="off">
       <label for="x-pass">Passphrase (required to save)</label><input id="x-pass" type="password" autocomplete="current-password">
       <button class="btn go wide" id="x-save">Save</button>
